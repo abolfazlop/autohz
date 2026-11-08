@@ -19,7 +19,7 @@ import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
     private static final int BG=0xFF08090B, PANEL=0xFF191A1D, PANEL2=0xFF24262A;
-    private static final int TEXT=0xFFF5F3FA, MUTED=0xFFA7A1B3, ACCENT=0xFF55DDBB;
+    private static final int TEXT=0xFFF5F3FA, MUTED=0xFFA7A1B3, ACCENT=0xFFB58CFF;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private android.content.SharedPreferences prefs;
     private TextView rootLabel, rootDetail, rateValue, rateCaption, resultLabel, deviceLabel, brightnessValue;
@@ -294,7 +294,7 @@ public class MainActivity extends Activity {
     private void showGameEditor(String pkg,String label){
         selectedGamePackage=pkg;selectedGameLabel=label;
         LinearLayout c=pageContent();
-        LinearLayout hero=column();pad(hero,16,16,16,16);hero.setBackground(shape(0xFF142722,20,0xFF286A59));
+        LinearLayout hero=column();pad(hero,16,16,16,16);hero.setBackground(shape(0xFF211A2D,20,0xFF493765));
         TextView app=text(label,20,TEXT,true);hero.addView(app);
         TextView packageName=text(pkg,10,MUTED,false);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,-2);pp.topMargin=dp(5);hero.addView(packageName,pp);
         LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.bottomMargin=dp(14);c.addView(hero,hp);
@@ -314,7 +314,7 @@ public class MainActivity extends Activity {
         int savedRate=gamePrefs.getInt(profileKey(pkg,"refresh"),120);
         for(int hz:new int[]{30,60,90,120}){
             final int value=hz;Button b=new Button(this);b.setText(hz+" Hz");b.setAllCaps(false);b.setTextSize(11);b.setTextColor(TEXT);
-            b.setBackground(shape(savedRate==hz?0xFF17483D:PANEL2,13,savedRate==hz?ACCENT:0));
+            b.setBackground(shape(savedRate==hz?0xFF49336A:PANEL2,13,savedRate==hz?ACCENT:0));
             LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);rates.addView(b,bp);
             b.setOnClickListener(v->{gamePrefs.edit().putInt(profileKey(pkg,"refresh"),value).apply();showGameEditor(pkg,label);});
         }
@@ -324,7 +324,7 @@ public class MainActivity extends Activity {
         LinearLayout modes=row();LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(48));mp.topMargin=dp(8);c.addView(modes,mp);
         for(String m:new String[]{"battery","standard","performance"}){
             Button b=new Button(this);b.setText(m.substring(0,1).toUpperCase(Locale.ROOT)+m.substring(1));b.setAllCaps(false);b.setTextSize(10);b.setTextColor(TEXT);
-            b.setBackground(shape(mode.equals(m)?0xFF17483D:PANEL2,13,mode.equals(m)?ACCENT:0));
+            b.setBackground(shape(mode.equals(m)?0xFF49336A:PANEL2,13,mode.equals(m)?ACCENT:0));
             LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);modes.addView(b,bp);
             b.setOnClickListener(v->{gamePrefs.edit().putString(profileKey(pkg,"mode"),m).apply();showGameEditor(pkg,label);});
         }
@@ -339,7 +339,7 @@ public class MainActivity extends Activity {
         TextView note=text("Cluster and GPU values are stored in this game's profile. They are not applied to hardware yet; a device-specific, verified sysfs backend is required before enabling writes.",11,MUTED,false);
         LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,-2);np.topMargin=dp(10);c.addView(note,np);
 
-        Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF17483D,16,0));
+        Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
         launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
@@ -348,7 +348,7 @@ public class MainActivity extends Activity {
     private void addClusterControls(LinearLayout parent,String pkg,String id,String heading,String hardware,int defaultMax){
         LinearLayout section=column();pad(section,14,12,14,12);section.setBackground(shape(PANEL,16,0xFF292B30));
         LinearLayout.LayoutParams sectionLp=new LinearLayout.LayoutParams(-1,-2);sectionLp.topMargin=dp(9);parent.addView(section,sectionLp);
-        TextView title=text("•  "+heading,13,0xFF55DDBB,true);section.addView(title);
+        TextView title=text("•  "+heading,13,ACCENT,true);section.addView(title);
         addClusterFrequency(section,pkg,id,"Maximum "+hardware+" frequency","max",hardware.equals("GPU")?100:300,hardware.equals("GPU")?3000:5000,defaultMax);
         addClusterFrequency(section,pkg,id,"Minimum "+hardware+" frequency","min",hardware.equals("GPU")?100:300,hardware.equals("GPU")?3000:5000,hardware.equals("GPU")?100:300);
         TextView governorLabel=text(hardware+" governor",12,TEXT,true);LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(-1,-2);glp.topMargin=dp(12);section.addView(governorLabel,glp);
