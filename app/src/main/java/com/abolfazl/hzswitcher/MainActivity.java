@@ -218,11 +218,19 @@ public class MainActivity extends Activity {
             boolean ok=out.contains("uid=0");
             runOnUiThread(()->{
                 rootReady=ok;
-                rootLabel.setText(ok?"GRANTED":"NOT GRANTED");
-                rootLabel.setTextColor(ok?ACCENT:0xFFFF9B9B);
-                rootDetail.setText(ok?"Root shell verified. Select a refresh rate to apply.":"Root access was not granted. Approve the superuser request in Magisk / KernelSU.");
-                resultLabel.setText(ok?"• Root shell verified. Ready to apply a display mode.":"• Root access not granted. Check your superuser manager.");
-                renderChoices();refreshDisplay();if(brightnessSlider!=null)loadBrightness();
+                if(rootLabel!=null){
+                    rootLabel.setText(ok?"GRANTED":"NOT GRANTED");
+                    rootLabel.setTextColor(ok?ACCENT:0xFFFF9B9B);
+                }
+                if(rootDetail!=null){
+                    rootDetail.setText(ok?"Root shell verified. Select a refresh rate to apply.":"Root access was not granted. Approve the superuser request in Magisk / KernelSU.");
+                }
+                if(resultLabel!=null){
+                    resultLabel.setText(ok?"• Root shell verified. Ready to apply a display mode.":"• Root access not granted. Check your superuser manager.");
+                }
+                renderChoices();
+                refreshDisplay();
+                if(brightnessSlider!=null)loadBrightness();
             });
         });
     }
