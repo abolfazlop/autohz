@@ -92,6 +92,28 @@ public class MainActivity extends Activity {
         setContentView(appRoot); showHome();
     }
 
+    private int getCurrentPageScrollY(){
+        try{
+            View page=pageHost.getChildAt(0);
+            if(page instanceof LinearLayout){
+                View candidate=((LinearLayout)page).getChildAt(2);
+                if(candidate instanceof ScrollView)return ((ScrollView)candidate).getScrollY();
+            }
+        }catch(Exception ignored){}
+        return 0;
+    }
+    private void restorePageScrollY(int y){
+        pageHost.post(()->{
+            try{
+                View page=pageHost.getChildAt(0);
+                if(page instanceof LinearLayout){
+                    View candidate=((LinearLayout)page).getChildAt(2);
+                    if(candidate instanceof ScrollView)((ScrollView)candidate).scrollTo(0,y);
+                }
+            }catch(Exception ignored){}
+        });
+    }
+
     private void showPage(String title, View content){
         currentPage=title; pageHost.removeAllViews();
         LinearLayout page=column(); pad(page,20,12,20,20);
@@ -344,7 +366,7 @@ public class MainActivity extends Activity {
             final int value=touchValues[ti];Button b=new Button(this);b.setText(touchLabels[ti]);b.setAllCaps(false);b.setTextSize(10);b.setTextColor(TEXT);
             b.setBackground(shape(savedTouch==value?0xFF49336A:PANEL2,13,savedTouch==value?ACCENT:0));
             LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);touchRates.addView(b,bp);
-            b.setOnClickListener(v->{gamePrefs.edit().putInt(profileKey(pkg,"touch_rate"),value).apply();showGameEditor(pkg,label);});
+            b.setOnClickListener(v->{int keepScroll=getCurrentPageScrollY();gamePrefs.edit().putInt(profileKey(pkg,"touch_rate"),value).apply();showGameEditor(pkg,label);restorePageScrollY(keepScroll);});
         }
         TextView note=text("Cluster and GPU values are stored in this game's profile. They are not applied to hardware yet; a device-specific, verified sysfs backend is required before enabling writes.",11,MUTED,false);
         LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,-2);np.topMargin=dp(10);c.addView(note,np);
