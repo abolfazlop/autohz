@@ -396,7 +396,27 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);touchRates.addView(b,bp);
             b.setOnClickListener(v->{int keepScroll=getCurrentPageScrollY();gamePrefs.edit().putInt(profileKey(pkg,"touch_rate"),value).apply();showGameEditor(pkg,label);restorePageScrollY(keepScroll);});
         }
-        TextView touchNote=text("Touch control is hardware-dependent. This build applies and verifies native 240/480 Hz only on supported Goodix panels, then restores the original value after the game closes. 1000 Hz needs a dedicated privileged input-resampling daemon and is not enabled by this APK backend.",11,MUTED,false);
+        TextView touchModuleStatus=text("Checking PulseXt KernelSU module…",11,MUTED,false);
+        LinearLayout.LayoutParams touchStatusParams=new LinearLayout.LayoutParams(-1,-2);touchStatusParams.topMargin=dp(9);c.addView(touchModuleStatus,touchStatusParams);
+        executor.execute(()->{
+            RootHardwareController.Result status=RootHardwareController.run(
+                "M=/data/adb/modules/pulsext_touch_engine; "+
+                "if [ -f \"$M/disable\" ]; then echo MODULE_DISABLED; "+
+                "elif [ ! -f \"$M/module.prop\" ]; then echo MODULE_NOT_INSTALLED; "+
+                "elif [ ! -x \"$M/pulsext-touchctl\" ]; then echo CONTROL_SCRIPT_MISSING; "+
+                "else \"$M/pulsext-touchctl\" status; fi",12000);
+            runOnUiThread(()->{
+                if(touchModuleStatus.getParent()==null)return;
+                String msg=status.output;
+                if(msg.contains("MODULE_NOT_INSTALLED"))touchModuleStatus.setText("KernelSU module not found. Install PulseXt Touch Engine and reboot.");
+                else if(msg.contains("MODULE_DISABLED"))touchModuleStatus.setText("PulseXt Touch Engine is disabled in KernelSU.");
+                else if(msg.contains("CONTROL_SCRIPT_MISSING"))touchModuleStatus.setText("Module files are incomplete. Reinstall the latest module.");
+                else if(status.ok()&&msg.contains("daemon=running")&&msg.contains("PONG"))
+                    touchModuleStatus.setText("KernelSU connected • Rodin daemon running");
+                else touchModuleStatus.setText("Module connection issue: "+msg.replace("\\n"," ").trim());
+            });
+        });
+        TextView touchNote=text("Touch rates are applied through the Rodin native daemon on supported rodin devices. Unsupported devices are reported instead of receiving unsafe driver writes.",11,MUTED,false);
         LinearLayout.LayoutParams touchNoteParams=new LinearLayout.LayoutParams(-1,-2);touchNoteParams.topMargin=dp(8);c.addView(touchNote,touchNoteParams);
         TextView note=text("Cluster and GPU values are stored in this game's profile. They are not applied to hardware yet; a device-specific, verified sysfs backend is required before enabling writes.",11,MUTED,false);
         LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,-2);np.topMargin=dp(10);c.addView(note,np);
