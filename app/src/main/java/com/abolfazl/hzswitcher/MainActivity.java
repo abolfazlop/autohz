@@ -398,7 +398,7 @@ public class MainActivity extends Activity {
 
         Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
-        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameQuickToggles(pkg);applyGameDisplaySound(pkg);startActivity(i);startGameRestoreMonitor(pkg);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
+        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameQuickToggles(pkg);applyGameDisplaySound(pkg);startGameRestoreMonitor(pkg);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
     }
 
@@ -509,25 +509,33 @@ public class MainActivity extends Activity {
     private void restoreGameBrightness(String pkg){
         int brightness=gamePrefs.getInt(profileKey(pkg,"restore_brightness"),-1);
         int mode=gamePrefs.getInt(profileKey(pkg,"restore_brightness_mode"),-1);
+        int volume=gamePrefs.getInt(profileKey(pkg,"restore_volume"),-1);
+        int volumeMax=gamePrefs.getInt(profileKey(pkg,"restore_volume_max"),15);
         if(brightness<0||brightness>255||mode<0||mode>1){
             android.util.Log.e("PulseXt","Saved brightness state invalid; refusing to overwrite current display setting");
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
             return;
         }
-        int volume=gamePrefs.getInt(profileKey(pkg,"restore_volume"),-1);
-        int volumeMax=gamePrefs.getInt(profileKey(pkg,"restore_volume_max"),15);
-        String command="settings put system screen_brightness_mode 0 && "+
+        boolean displayOk=false;
+        RootHardwareController.Result display=RootHardwareController.run(
+            "settings put system screen_brightness_mode 0 && "+
             "settings put system screen_brightness "+brightness+" && "+
             "settings put system screen_brightness_mode "+mode+" && "+
             "[ \"$(settings get system screen_brightness)\" = \""+brightness+"\" ] && "+
-            "[ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]";
-        if(volume>=0&&volumeMax>0)command+=" && cmd media_session volume --stream 3 --set "+Math.min(volume,volumeMax);
-        RootHardwareController.Result r=RootHardwareController.run(command,7000);
-        if(r.ok()){
+            "[ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]",7000);
+        displayOk=display.ok();
+        boolean volumeOk=(volume<0||volumeMax<1);
+        if(volume>=0&&volumeMax>0){
+            RootHardwareController.Result vr=RootHardwareController.run(
+                "cmd media_session volume --stream 3 --set "+Math.min(volume,volumeMax),5000);
+            volumeOk=vr.ok();
+            if(!volumeOk)android.util.Log.e("PulseXt","Volume restore failed independently: "+vr.output);
+        }
+        if(displayOk&&volumeOk){
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
-            android.util.Log.i("PulseXt","Original display brightness and auto mode restored for "+pkg);
+            android.util.Log.i("PulseXt","Original display and volume state restored for "+pkg);
         }else{
-            android.util.Log.e("PulseXt","Brightness restore failed; pending state retained: "+r.output);
+            android.util.Log.e("PulseXt","Restore incomplete. displayOk="+displayOk+" volumeOk="+volumeOk+" display="+display.output);
             gameRestoreHandler.postDelayed(()->executor.execute(()->restoreGameBrightness(pkg)),2500);
         }
     }
