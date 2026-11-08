@@ -15,17 +15,6 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 import android.widget.Toast;
-import android.graphics.Color;
-import android.graphics.PixelFormat;
-import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
-import android.view.Gravity;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.WindowManager;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.provider.Settings;
 
 public final class GameProfileMonitorService extends Service {
     private static final String TAG="PulseXtGameMonitor";
@@ -37,10 +26,6 @@ public final class GameProfileMonitorService extends Service {
     private String gamePackage;
     private boolean seenGame;
     private boolean checking;
-    private WindowManager overlayManager;
-    private View gameOverlay;
-    private TextView overlayInfo;
-    private boolean overlayOpen;
     private final Runnable poll=new Runnable(){
         @Override public void run(){
             if(checking||gamePackage==null)return;
@@ -58,9 +43,8 @@ public final class GameProfileMonitorService extends Service {
                             seenGame=true;
                             getSharedPreferences(PREFS,MODE_PRIVATE).edit()
                                 .putBoolean("monitor_seen_game",true).apply();
-                            Toast.makeText(GameProfileMonitorService.this,"Game Profile activated",Toast.LENGTH_LONG).show();
-                            showGameOverlay();
-                            new Thread(()->{applyGameHardwareProfile(gamePackage);applyGameRefreshProfile(gamePackage);},"PulseXtHardwareApply").start();
+                            Toast.makeText(GameProfileMonitorService.this,"Game Profile activated",Toast.LENGTH_SHORT).show();
+                            new Thread(()->{applyDisplaySoundProfile(gamePackage);applyGameHardwareProfile(gamePackage);applyGameRefreshProfile(gamePackage);},"PulseXtHardwareApply").start();
                         }
                         handler.postDelayed(this,1000);
                     }else if(seenGame){
@@ -96,6 +80,28 @@ public final class GameProfileMonitorService extends Service {
         handler.removeCallbacks(poll);
         handler.post(poll);
         return START_STICKY;
+    }
+
+    private void applyDisplaySoundProfile(String pkg){
+        android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
+        if(prefs.getBoolean(pkg+".brightness_enabled",true)){
+            int percent=Math.max(0,Math.min(100,prefs.getInt(pkg+".brightness",70)));
+            int target=Math.round(percent*255f/100f);
+            RootHardwareController.Result r=RootHardwareController.run(
+                "settings --user 0 put system screen_brightness_mode 0 && settings --user 0 put system screen_brightness "+target+
+                " && [ \"$(settings --user 0 get system screen_brightness)\" = \""+target+"\" ]",7000);
+            Log.i(TAG,"Game brightness "+percent+"% result="+r.output+" ok="+r.ok());
+        }
+        if(prefs.getBoolean(pkg+".volume_enabled",true)){
+            int percent=Math.max(0,Math.min(100,prefs.getInt(pkg+".volume",70)));
+            try{
+                AudioManager audio=(AudioManager)getSystemService(Context.AUDIO_SERVICE);
+                int max=audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                int target=Math.round(max*percent/100f);
+                audio.setStreamVolume(AudioManager.STREAM_MUSIC,target,0);
+                Log.i(TAG,"Game volume "+percent+"% applied="+(audio.getStreamVolume(AudioManager.STREAM_MUSIC)==target));
+            }catch(Exception e){Log.e(TAG,"Game volume apply failed",e);}
+        }
     }
 
     /**
@@ -287,7 +293,6 @@ public final class GameProfileMonitorService extends Service {
     }
 
     private void restoreAndFinish(){
-        removeGameOverlay();
         if(!getSharedPreferences(PREFS,MODE_PRIVATE).getBoolean(gamePackage+".restore_pending",false)){
             stopSelf();return;
         }
@@ -298,8 +303,8 @@ public final class GameProfileMonitorService extends Service {
             int batterySaver=prefs.getInt(gamePackage+".restore_battery_saver",-1);
             int volume=prefs.getInt(gamePackage+".restore_volume",-1);
             int volumeMax=prefs.getInt(gamePackage+".restore_volume_max",-1);
-            boolean displayOk=false;
-            if(brightness>=0&&brightness<=255&&(mode==0||mode==1)){
+            boolean displayOk=!prefs.getBoolean(gamePackage+".brightness_enabled",true);
+            if(prefs.getBoolean(gamePackage+".brightness_enabled",true)&&brightness>=0&&brightness<=255&&(mode==0||mode==1)){
                 RootHardwareController.Result display=RootHardwareController.run(
                     "settings --user 0 put system screen_brightness_mode 0 && "+
                     "settings --user 0 put system screen_brightness "+brightness+" && "+
@@ -309,8 +314,8 @@ public final class GameProfileMonitorService extends Service {
                 displayOk=display.ok();
                 if(!displayOk)Log.e(TAG,"Brightness restore failed: "+display.output);
             }else Log.e(TAG,"Saved brightness state invalid");
-            boolean volumeOk=false;
-            if(volume>=0&&volumeMax>0){
+            boolean volumeOk=!prefs.getBoolean(gamePackage+".volume_enabled",true);
+            if(prefs.getBoolean(gamePackage+".volume_enabled",true)&&volume>=0&&volumeMax>0){
                 try{
                     AudioManager audio=(AudioManager)getSystemService(Context.AUDIO_SERVICE);
                     int target=Math.max(0,Math.min(volume,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)));
@@ -351,25 +356,6 @@ public final class GameProfileMonitorService extends Service {
         },"PulseXtGameRestore").start();
     }
 
-    private int dp(float value){return (int)(value*getResources().getDisplayMetrics().density+0.5f);}
-    private void showGameOverlay(){
-        if(Build.VERSION.SDK_INT>=23&&!Settings.canDrawOverlays(this)){Log.w(TAG,"Overlay permission missing");return;}
-        if(gameOverlay!=null)return;
-        overlayManager=(WindowManager)getSystemService(WINDOW_SERVICE);
-        LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(12),dp(10),dp(12),dp(10));
-        GradientDrawable bg=new GradientDrawable();bg.setColor(0xF21B1428);bg.setCornerRadius(dp(16));bg.setStroke(dp(1),0xFF8B65CC);panel.setBackground(bg);
-        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title=new TextView(this);title.setText("PulseXt  •  GAME");title.setTextColor(Color.WHITE);title.setTextSize(13);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);header.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-        TextView expand=new TextView(this);expand.setText("⌄");expand.setTextColor(0xFFD7C5FF);expand.setTextSize(22);header.addView(expand);panel.addView(header);
-        overlayInfo=new TextView(this);overlayInfo.setText("Game Profile active\\nCPU: --   GPU: --\\nRefresh: --   Temp: --");overlayInfo.setTextColor(0xFFE7DFF5);overlayInfo.setTextSize(12);overlayInfo.setVisibility(View.GONE);overlayInfo.setPadding(0,dp(8),0,0);panel.addView(overlayInfo);
-        expand.setOnClickListener(v->{overlayOpen=!overlayOpen;overlayInfo.setVisibility(overlayOpen?View.VISIBLE:View.GONE);expand.setText(overlayOpen?"⌃":"⌄");});
-        panel.setOnTouchListener(new View.OnTouchListener(){float x,y;int sx,sy;public boolean onTouch(View v,MotionEvent e){if(e.getAction()==MotionEvent.ACTION_DOWN){x=e.getRawX();y=e.getRawY();WindowManager.LayoutParams q=(WindowManager.LayoutParams)panel.getLayoutParams();sx=q.x;sy=q.y;return true;}if(e.getAction()==MotionEvent.ACTION_MOVE){WindowManager.LayoutParams q=(WindowManager.LayoutParams)panel.getLayoutParams();q.x=sx+(int)(e.getRawX()-x);q.y=sy+(int)(e.getRawY()-y);overlayManager.updateViewLayout(panel,q);return true;}return e.getAction()==MotionEvent.ACTION_UP;}});
-        int type=Build.VERSION.SDK_INT>=26?WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY:WindowManager.LayoutParams.TYPE_PHONE;
-        WindowManager.LayoutParams lp=new WindowManager.LayoutParams(dp(220),-2,type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);lp.gravity=Gravity.TOP|Gravity.END;lp.x=dp(12);lp.y=dp(140);
-        gameOverlay=panel;try{overlayManager.addView(gameOverlay,lp);handler.post(overlayUpdate);}catch(Exception e){gameOverlay=null;Log.e(TAG,"Overlay add failed",e);}
-    }
-    private final Runnable overlayUpdate=new Runnable(){public void run(){if(gameOverlay==null)return;new Thread(()->{RootHardwareController.Result r=RootHardwareController.run("CPU=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null); GPU=$(find /sys/class/devfreq -name cur_freq -type f 2>/dev/null | head -n1 | xargs -r cat 2>/dev/null); TEMP=$(dumpsys thermalservice 2>/dev/null | grep -m1 -E 'mValue=' | sed 's/.*mValue=//;s/[^0-9.].*//'); echo $CPU,$GPU,$TEMP",4000);String[] v=r.output.trim().split(",");String cpu=v.length>0&&!v[0].isEmpty()?v[0]:"--";String gpu=v.length>1&&!v[1].isEmpty()?v[1]:"--";String temp=v.length>2&&!v[2].isEmpty()?v[2]:"--";String info="Game Profile active\\nCPU: "+cpu+" kHz   GPU: "+gpu+"\\nRefresh: selected profile   Temp: "+temp+"°C\\nFPS: not exposed by this device";handler.post(()->{if(overlayInfo!=null)overlayInfo.setText(info);});},"PulseXtOverlayMetrics").start();handler.postDelayed(this,2000);}};
-    private void removeGameOverlay(){handler.removeCallbacks(overlayUpdate);if(overlayManager!=null&&gameOverlay!=null)try{overlayManager.removeView(gameOverlay);}catch(Exception ignored){}gameOverlay=null;overlayInfo=null;overlayOpen=false;}
     private Notification buildNotification(String text){
         if(Build.VERSION.SDK_INT>=26){
             return new Notification.Builder(this,CHANNEL)
