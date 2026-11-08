@@ -475,19 +475,27 @@ public class MainActivity extends Activity {
                 if(!gamePrefs.getBoolean(profileKey(pkg,"restore_pending"),false)){
                     gameRestoreRunnable=null;return;
                 }
-                RootHardwareController.Result fg=RootHardwareController.run(
-                    "dumpsys activity activities 2>/dev/null | grep -E 'mResumedActivity|topResumedActivity' ; "+
-                    "dumpsys window 2>/dev/null | grep -m1 mCurrentFocus",4000);
-                boolean active=fg.ok()&&fg.output.contains(pkg);
-                if(active)seenGame[0]=true;
-                else if(seenGame[0]){
-                    restoreGameBrightness(pkg);
-                    gameRestoreRunnable=null;return;
-                }
-                gameRestoreHandler.postDelayed(this,1000);
+                executor.execute(()->{
+                    RootHardwareController.Result fg=RootHardwareController.run(
+                        "(dumpsys activity activities 2>/dev/null | grep -E 'mResumedActivity|topResumedActivity' || true); "+
+                        "(dumpsys window 2>/dev/null | grep -m1 mCurrentFocus || true); exit 0",5000);
+                    boolean active=fg.output.contains(pkg);
+                    android.util.Log.d("PulseXt","Foreground probe for "+pkg+": active="+active+" output="+fg.output);
+                    gameRestoreHandler.post(()->{
+                        if(!gamePrefs.getBoolean(profileKey(pkg,"restore_pending"),false)){
+                            gameRestoreRunnable=null;return;
+                        }
+                        if(active)seenGame[0]=true;
+                        else if(seenGame[0]){
+                            executor.execute(()->restoreGameBrightness(pkg));
+                            gameRestoreRunnable=null;return;
+                        }
+                        gameRestoreHandler.postDelayed(this,1200);
+                    });
+                });
             }
         };
-        gameRestoreHandler.postDelayed(gameRestoreRunnable,700);
+        gameRestoreHandler.postDelayed(gameRestoreRunnable,900);
     }
 
     private void restoreGameBrightness(String pkg){
