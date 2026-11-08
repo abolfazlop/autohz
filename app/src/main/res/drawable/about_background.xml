@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
-        <bitmap android:src="@drawable/about_bg" android:gravity="fill" />
+        <bitmap
+            android:src="@drawable/about_bg"
+            android:gravity="fill" />
     </item>
-    <item android:drawable="#B8000000" />
+    <item>
+        <color android:color="#B8000000" />
+    </item>
 </layer-list>
