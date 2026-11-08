@@ -225,8 +225,9 @@ public final class GameProfileMonitorService extends Service {
         String module="/data/adb/modules/pulsext_touch_engine/pulsext-touchctl";
         RootHardwareController.Result result=RootHardwareController.run(
             "[ -x "+module+" ] && "+module+" restore",15000);
-        boolean ok=result.ok()&&result.output.contains("touch=-1")&&result.output.contains("touch_ack=-1");
-        Log.i(TAG,"Rodin native touch restore verified="+ok+" output="+result.output);
+        boolean unsupported=result.output.contains("error=unsupported_device")||result.output.contains("rodin_ctl_missing");
+        boolean ok=unsupported||(result.ok()&&result.output.contains("touch=-1")&&result.output.contains("touch_ack=-1"));
+        Log.i(TAG,"Rodin native touch restore verified="+ok+" unsupported="+unsupported+" output="+result.output);
         return ok;
     }
 
