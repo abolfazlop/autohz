@@ -220,7 +220,7 @@ public final class GameProfileMonitorService extends Service {
             return false;
         }
         String original=probe.output.trim().split("\\s+")[0];
-        if(!original.equals("0")&&!original.equals("1")&&!original.toLowerCase().contains("hz")){
+        if(!original.equals("0")&&!original.equals("1")){
             Log.w(TAG,"Unknown Goodix report-rate value; refusing to modify: "+original);
             return false;
         }
