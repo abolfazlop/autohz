@@ -341,22 +341,43 @@ public class MainActivity extends Activity {
             b.setOnClickListener(v->{gamePrefs.edit().putInt(profileKey(pkg,"refresh"),value).apply();showGameEditor(pkg,label);});
         }
 
-        addLabel(c,"PERFORMANCE",10,MUTED,true,20);
-        String mode=gamePrefs.getString(profileKey(pkg,"mode"),"standard");
-        LinearLayout modes=row();LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(48));mp.topMargin=dp(8);c.addView(modes,mp);
-        for(String m:new String[]{"battery","standard","performance"}){
-            Button b=new Button(this);b.setText(m.substring(0,1).toUpperCase(Locale.ROOT)+m.substring(1));b.setAllCaps(false);b.setTextSize(10);b.setTextColor(TEXT);
-            b.setBackground(shape(mode.equals(m)?0xFF49336A:PANEL2,13,mode.equals(m)?ACCENT:0));
+        addLabel(c,"GAME MODE",10,MUTED,true,20);
+        String gameMode=gamePrefs.getString(profileKey(pkg,"game_mode"),"default");
+        LinearLayout modes=row();LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(54));mp.topMargin=dp(8);c.addView(modes,mp);
+        String[] modeIds={"ai_dynamic","gaming_max","default"};
+        String[] modeTitles={"AI Dynamic","Gaming Max","Default"};
+        for(int mi=0;mi<modeIds.length;mi++){
+            final String id=modeIds[mi];Button b=new Button(this);b.setText(modeTitles[mi]);b.setAllCaps(false);b.setTextSize(10);b.setTextColor(TEXT);
+            b.setBackground(shape(gameMode.equals(id)?0xFF49336A:PANEL2,13,gameMode.equals(id)?ACCENT:0));
             LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);modes.addView(b,bp);
-            b.setOnClickListener(v->{gamePrefs.edit().putString(profileKey(pkg,"mode"),m).apply();showGameEditor(pkg,label);});
+            b.setOnClickListener(v->{
+                android.content.SharedPreferences.Editor edit=gamePrefs.edit().putString(profileKey(pkg,"game_mode"),id);
+                if(id.equals("gaming_max")){
+                    for(String cluster:new String[]{"little","big","prime","gpu"}){
+                        int max=cluster.equals("little")?5000:cluster.equals("big")?5000:cluster.equals("prime")?5000:3000;
+                        edit.putInt(profileKey(pkg,cluster+"_max_mhz"),max)
+                            .putInt(profileKey(pkg,cluster+"_min_mhz"),max)
+                            .putBoolean(profileKey(pkg,cluster+"_max_enabled"),true)
+                            .putBoolean(profileKey(pkg,cluster+"_min_enabled"),true);
+                    }
+                    edit.putString(profileKey(pkg,"gpu_governor"),"performance");
+                }
+                edit.apply();showGameEditor(pkg,label);
+            });
         }
+        TextView modeHint=text(gameMode.equals("ai_dynamic")?
+            "AI Dynamic selected • manual CPU/GPU controls locked. Adaptive hardware control needs a supported background controller.":
+            gameMode.equals("gaming_max")?
+            "Gaming Max selected • manual CPU/GPU controls locked. Maximum targets and Performance GPU governor are selected in this profile.":
+            "Default selected • manual CPU/GPU controls unlocked.",11,MUTED,false);
+        LinearLayout.LayoutParams mhp=new LinearLayout.LayoutParams(-1,-2);mhp.topMargin=dp(7);c.addView(modeHint,mhp);
 
         addLabel(c,"CPU CLUSTER CONTROLS",10,MUTED,true,22);
-        addClusterControls(c,pkg,"little","LITTLE CLUSTER","CPU",1900);
-        addClusterControls(c,pkg,"big","BIG CLUSTER","CPU",3000);
-        addClusterControls(c,pkg,"prime","PRIME CLUSTER","CPU",3500);
+        addClusterControls(c,pkg,"little","LITTLE CLUSTER","CPU",1900,gameMode.equals("default"));
+        addClusterControls(c,pkg,"big","BIG CLUSTER","CPU",3000,gameMode.equals("default"));
+        addClusterControls(c,pkg,"prime","PRIME CLUSTER","CPU",3500,gameMode.equals("default"));
         addLabel(c,"GPU CONTROLS",10,MUTED,true,22);
-        addClusterControls(c,pkg,"gpu","GPU CLUSTER","GPU",1000);
+        addClusterControls(c,pkg,"gpu","GPU CLUSTER","GPU",1000,gameMode.equals("default"));
         addLabel(c,"TOUCH SAMPLING RATE",10,MUTED,true,20);
         LinearLayout touchRates=row();LinearLayout.LayoutParams trp=new LinearLayout.LayoutParams(-1,dp(48));trp.topMargin=dp(8);c.addView(touchRates,trp);
         int savedTouch=gamePrefs.getInt(profileKey(pkg,"touch_rate"),0);
@@ -377,12 +398,12 @@ public class MainActivity extends Activity {
         showPage("Game Profile",c);
     }
 
-    private void addClusterControls(LinearLayout parent,String pkg,String id,String heading,String hardware,int defaultMax){
+    private void addClusterControls(LinearLayout parent,String pkg,String id,String heading,String hardware,int defaultMax,boolean manualAllowed){
         LinearLayout section=column();pad(section,14,12,14,12);section.setBackground(shape(PANEL,16,0xFF292B30));
         LinearLayout.LayoutParams sectionLp=new LinearLayout.LayoutParams(-1,-2);sectionLp.topMargin=dp(9);parent.addView(section,sectionLp);
         TextView title=text("•  "+heading,13,ACCENT,true);section.addView(title);
-        addClusterFrequency(section,pkg,id,"Maximum "+hardware+" frequency","max",hardware.equals("GPU")?100:300,hardware.equals("GPU")?3000:5000,defaultMax);
-        addClusterFrequency(section,pkg,id,"Minimum "+hardware+" frequency","min",hardware.equals("GPU")?100:300,hardware.equals("GPU")?3000:5000,hardware.equals("GPU")?100:300);
+        addClusterFrequency(section,pkg,id,"Maximum "+hardware+" frequency","max",hardware.equals("GPU")?100:300,hardware.equals("GPU")?3000:5000,defaultMax,manualAllowed);
+        addClusterFrequency(section,pkg,id,"Minimum "+hardware+" frequency","min",hardware.equals("GPU")?100:300,hardware.equals("GPU")?3000:5000,hardware.equals("GPU")?100:300,manualAllowed);
         TextView governorLabel=text(hardware+" governor",12,TEXT,true);LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(-1,-2);glp.topMargin=dp(12);section.addView(governorLabel,glp);
         Spinner governors=new Spinner(this);
         governors.setBackground(shape(0xFF49336A,10,0xFF8F65D8));
@@ -404,7 +425,7 @@ public class MainActivity extends Activity {
                 return styled(getItem(position),true);
             }
         };
-        governors.setAdapter(adapter);
+        governors.setAdapter(adapter);governors.setEnabled(manualAllowed);
         String saved=gamePrefs.getString(profileKey(pkg,id+"_governor"),"powersave");
         int selected=0;for(int i=0;i<options.length;i++)if(options[i].equals(saved))selected=i;
         governors.setSelection(selected);section.addView(governors);
@@ -418,19 +439,19 @@ public class MainActivity extends Activity {
         params.setOnFocusChangeListener((v,hasFocus)->{if(!hasFocus)gamePrefs.edit().putString(profileKey(pkg,id+"_params"),params.getText().toString()).apply();});
     }
 
-    private void addClusterFrequency(LinearLayout parent,String pkg,String cluster,String label,String key,int min,int max,int fallback){
+    private void addClusterFrequency(LinearLayout parent,String pkg,String cluster,String label,String key,int min,int max,int fallback,boolean manualAllowed){
         LinearLayout row=column();LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.topMargin=dp(8);parent.addView(row,rp);
         LinearLayout header=row();header.addView(text(label,12,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
         String prefKey=cluster+"_"+key+"_enabled";
-        Switch enabled=new Switch(this);enabled.setChecked(gamePrefs.getBoolean(profileKey(pkg,prefKey),false));header.addView(enabled);row.addView(header);
+        Switch enabled=new Switch(this);enabled.setChecked(gamePrefs.getBoolean(profileKey(pkg,prefKey),false));enabled.setEnabled(manualAllowed);header.addView(enabled);row.addView(header);
         String valueKey=cluster+"_"+key+"_mhz";
         int initial=gamePrefs.getInt(profileKey(pkg,valueKey),fallback);
         TextView value=text(initial+" MHz",11,MUTED,false);row.addView(value);
         SeekBar bar=new SeekBar(this);bar.setMax((max-min)/50);bar.setProgress(Math.max(0,Math.min((max-min)/50,(initial-min)/50)));
         if(android.os.Build.VERSION.SDK_INT>=21){bar.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));bar.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));}
         row.addView(bar);
-        bar.setEnabled(enabled.isChecked());value.setAlpha(enabled.isChecked()?1f:0.55f);
-        enabled.setOnCheckedChangeListener((button,checked)->{gamePrefs.edit().putBoolean(profileKey(pkg,prefKey),checked).apply();bar.setEnabled(checked);value.setAlpha(checked?1f:0.55f);});
+        bar.setEnabled(manualAllowed&&enabled.isChecked());value.setAlpha(manualAllowed&&enabled.isChecked()?1f:0.55f);
+        enabled.setOnCheckedChangeListener((button,checked)->{gamePrefs.edit().putBoolean(profileKey(pkg,prefKey),checked).apply();bar.setEnabled(manualAllowed&&checked);value.setAlpha(manualAllowed&&checked?1f:0.55f);});
         bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             public void onProgressChanged(SeekBar seek,int progress,boolean fromUser){value.setText((min+progress*50)+" MHz");}
             public void onStartTrackingTouch(SeekBar seek){}
