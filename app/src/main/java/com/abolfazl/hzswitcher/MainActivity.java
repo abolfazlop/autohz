@@ -938,19 +938,20 @@ public class MainActivity extends Activity {
                     " && settings put secure miui_refresh_rate "+hz+
                     " && settings put system min_refresh_rate "+hz+
                     " && settings put system peak_refresh_rate "+hz+
-                    " && settings put system user_refresh_rate "+hz;
+                    " && settings put secure user_refresh_rate 1;
                 CommandResult applied=execRoot(cmd);
                 if(applied.exit!=0||applied.timeout)throw new RuntimeException("Apply command failed: "+applied.output);
                 Thread.sleep(1600);
                 String verifySettings="settings get secure miui_refresh_rate; "+
                     "settings get system min_refresh_rate; "+
                     "settings get system peak_refresh_rate; "+
-                    "settings get system user_refresh_rate";
+                    "settings get secure user_refresh_rate";
                 CommandResult settingCheck=execRoot(verifySettings);
                 String[] values=settingCheck.output.trim().split("\\s+");
-                if(values.length<4)throw new RuntimeException("Could not verify all four refresh settings: "+settingCheck.output);
-                for(String value:values)if(!value.equals(String.valueOf(hz)))
+                if(values.length<4)throw new RuntimeException("Could not verify HyperOS refresh settings: "+settingCheck.output);
+                for(int vi=0;vi<3;vi++)if(!values[vi].equals(String.valueOf(hz)))
                     throw new RuntimeException("Refresh settings were overridden. Expected "+hz+" Hz, got: "+settingCheck.output);
+                if(!"1".equals(values[3]))throw new RuntimeException("HyperOS custom refresh mode flag was not enabled: "+settingCheck.output);
                 prefs.edit().putInt("selected_refresh_rate",hz).apply();
                 CommandResult verify=execRoot("dumpsys display");
                 String dump=verify.output;
