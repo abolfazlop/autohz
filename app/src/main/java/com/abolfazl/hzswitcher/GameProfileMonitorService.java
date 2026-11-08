@@ -7,6 +7,8 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
+import android.hardware.display.DisplayManager;
+import android.view.Display;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -78,44 +80,102 @@ public final class GameProfileMonitorService extends Service {
         return START_STICKY;
     }
 
+    /**
+     * Apply the exact same Display.Mode based request as MainActivity.applyRate().
+     * Save the live settings once per game launch, then restore that snapshot on exit.
+     */
     private void applyGameRefreshProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
         int hz=prefs.getInt(pkg+".refresh",30);
         if(hz!=30&&hz!=60&&hz!=90&&hz!=120)return;
-        RootHardwareController.Result save=RootHardwareController.run(
-            "echo MIUI:$(settings get secure miui_refresh_rate); echo MIN:$(settings get system min_refresh_rate); echo PEAK:$(settings get system peak_refresh_rate); echo USER:$(settings get secure user_refresh_rate)",5000);
-        if(!save.ok())return;
-        long miui=-1,min=-1,peak=-1,user=-1;
-        for(String line:save.output.split("\\r?\\n")){
-            int k=line.indexOf(':');if(k<0)continue;long v=-1;
-            try{v=Long.parseLong(line.substring(k+1).trim());}catch(Exception ignored){}
-            String key=line.substring(0,k);
-            if(key.equals("MIUI"))miui=v;else if(key.equals("MIN"))min=v;else if(key.equals("PEAK"))peak=v;else if(key.equals("USER"))user=v;
+
+        DisplayManager dm=(DisplayManager)getSystemService(Context.DISPLAY_SERVICE);
+        Display display=dm==null?null:dm.getDisplay(Display.DEFAULT_DISPLAY);
+        if(display==null){Log.e(TAG,"Refresh apply skipped: default display unavailable");return;}
+        Display.Mode selected=null;
+        for(Display.Mode mode:display.getSupportedModes()){
+            if(Math.abs(mode.getRefreshRate()-hz)<1.2f){selected=mode;break;}
         }
-        prefs.edit().putLong(pkg+".restore_refresh_miui",miui).putLong(pkg+".restore_refresh_min",min)
-            .putLong(pkg+".restore_refresh_peak",peak).putLong(pkg+".restore_refresh_user",user).apply();
-        String script="size=$(wm size 2>/dev/null | awk \"/Physical size/ {print $3}\"); "+
-            "w=$(echo $size | cut -dx -f1); h=$(echo $size | cut -dx -f2); "+
-            "cmd display set-user-preferred-display-mode $w $h "+hz+" 0 && "+
-            "settings put secure miui_refresh_rate "+hz+" && settings put system min_refresh_rate "+hz+
-            " && settings put system peak_refresh_rate "+hz+" && settings put secure user_refresh_rate 1";
-        RootHardwareController.Result r=RootHardwareController.run(script,7000);
-        Log.i(TAG,"Game refresh "+hz+" Hz exit="+r.exitCode+" output="+r.output);
+        if(selected==null){Log.w(TAG,"Refresh apply skipped: "+hz+" Hz is not a supported physical mode");return;}
+
+        // Persist a fresh snapshot only once for this active game session.
+        if(!prefs.getBoolean(pkg+".refresh_backup_valid",false)){
+            RootHardwareController.Result snapshot=RootHardwareController.run(
+                "echo MIUI:$(settings get secure miui_refresh_rate); "+
+                "echo MIN:$(settings get system min_refresh_rate); "+
+                "echo PEAK:$(settings get system peak_refresh_rate); "+
+                "echo USER:$(settings get secure user_refresh_rate)",5000);
+            if(!snapshot.ok()){Log.e(TAG,"Could not snapshot refresh settings: "+snapshot.output);return;}
+            long miui=-1,min=-1,peak=-1,user=-1;
+            for(String line:snapshot.output.split("\\r?\\n")){
+                int k=line.indexOf(':');if(k<0)continue;
+                long value=-1;try{value=Long.parseLong(line.substring(k+1).trim());}catch(Exception ignored){}
+                switch(line.substring(0,k)){
+                    case "MIUI":miui=value;break;
+                    case "MIN":min=value;break;
+                    case "PEAK":peak=value;break;
+                    case "USER":user=value;break;
+                }
+            }
+            prefs.edit().putLong(pkg+".restore_refresh_miui",miui)
+                .putLong(pkg+".restore_refresh_min",min)
+                .putLong(pkg+".restore_refresh_peak",peak)
+                .putLong(pkg+".restore_refresh_user",user)
+                .putBoolean(pkg+".refresh_backup_valid",true).commit();
+        }
+
+        String command="cmd display set-user-preferred-display-mode "+
+            selected.getPhysicalWidth()+" "+selected.getPhysicalHeight()+" "+hz+" 0"+
+            " && settings put secure miui_refresh_rate "+hz+
+            " && settings put system min_refresh_rate "+hz+
+            " && settings put system peak_refresh_rate "+hz+
+            " && settings put secure user_refresh_rate 1";
+        RootHardwareController.Result applied=RootHardwareController.run(command,8000);
+        if(!applied.ok()){
+            Log.e(TAG,"Game refresh apply failed for "+hz+" Hz: "+applied.output);
+            return;
+        }
+        RootHardwareController.Result check=RootHardwareController.run(
+            "settings get secure miui_refresh_rate; "+
+            "settings get system min_refresh_rate; "+
+            "settings get system peak_refresh_rate; "+
+            "settings get secure user_refresh_rate",5000);
+        String[] values=check.output.trim().split("\\s+");
+        boolean verified=check.ok()&&values.length>=4&&
+            String.valueOf(hz).equals(values[0])&&String.valueOf(hz).equals(values[1])&&
+            String.valueOf(hz).equals(values[2])&&"1".equals(values[3]);
+        Log.i(TAG,"Game refresh requested="+hz+" verified="+verified+
+            " settings="+check.output+" command="+applied.output);
     }
 
     private boolean restoreGameRefreshProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
-        long miui=prefs.getLong(pkg+".restore_refresh_miui",-1),min=prefs.getLong(pkg+".restore_refresh_min",-1);
-        long peak=prefs.getLong(pkg+".restore_refresh_peak",-1),user=prefs.getLong(pkg+".restore_refresh_user",-1);
-        StringBuilder script=new StringBuilder();
-        if(miui<0)script.append("settings delete secure miui_refresh_rate; ");else script.append("settings put secure miui_refresh_rate ").append(miui).append("; ");
-        if(min<0)script.append("settings delete system min_refresh_rate; ");else script.append("settings put system min_refresh_rate ").append(min).append("; ");
-        if(peak<0)script.append("settings delete system peak_refresh_rate; ");else script.append("settings put system peak_refresh_rate ").append(peak).append("; ");
-        if(user<0)script.append("settings delete secure user_refresh_rate; ");else script.append("settings put secure user_refresh_rate ").append(user).append("; ");
-        script.append("cmd display clear-user-preferred-display-mode 0");
-        RootHardwareController.Result r=RootHardwareController.run(script.toString(),7000);
-        if(!r.ok())Log.e(TAG,"Game refresh restore failed: "+r.output);
-        return r.ok();
+        if(!prefs.getBoolean(pkg+".refresh_backup_valid",false)){
+            Log.w(TAG,"No refresh snapshot for "+pkg+"; refusing to overwrite display settings");
+            return true;
+        }
+        long miui=prefs.getLong(pkg+".restore_refresh_miui",-1);
+        long min=prefs.getLong(pkg+".restore_refresh_min",-1);
+        long peak=prefs.getLong(pkg+".restore_refresh_peak",-1);
+        long user=prefs.getLong(pkg+".restore_refresh_user",-1);
+        StringBuilder command=new StringBuilder();
+        if(miui<0)command.append("settings delete secure miui_refresh_rate; ");
+        else command.append("settings put secure miui_refresh_rate ").append(miui).append("; ");
+        if(min<0)command.append("settings delete system min_refresh_rate; ");
+        else command.append("settings put system min_refresh_rate ").append(min).append("; ");
+        if(peak<0)command.append("settings delete system peak_refresh_rate; ");
+        else command.append("settings put system peak_refresh_rate ").append(peak).append("; ");
+        if(user<0)command.append("settings delete secure user_refresh_rate; ");
+        else command.append("settings put secure user_refresh_rate ").append(user).append("; ");
+        command.append("cmd display clear-user-preferred-display-mode 0");
+        RootHardwareController.Result result=RootHardwareController.run(command.toString(),8000);
+        if(!result.ok()){
+            Log.e(TAG,"Game refresh restore failed: "+result.output);
+            return false;
+        }
+        prefs.edit().putBoolean(pkg+".refresh_backup_valid",false).apply();
+        Log.i(TAG,"Original refresh settings restored for "+pkg+": "+result.output);
+        return true;
     }
 
     /** Apply only controls enabled by the saved game profile, using live kernel bounds. */
