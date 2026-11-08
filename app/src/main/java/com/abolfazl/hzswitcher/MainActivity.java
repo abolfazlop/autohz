@@ -590,8 +590,7 @@ public class MainActivity extends Activity {
         }
         if(commands.isEmpty())return;
         StringBuilder script=new StringBuilder();
-        for(String command:commands)script.append(command).append(" || echo PULSEXＴ_FAILED:").append(command.replace("'","")).append("
-");
+        for(String command:commands)script.append(command).append(" || echo PULSEX_FAILED").append("\n");
         RootHardwareController.Result result=RootHardwareController.run(script.toString(),10000);
         if(!result.ok()||result.output.contains("PULSEXＴ_FAILED")){
             Toast.makeText(this,"Some game toggles could not be applied. Check root access and Android support.",Toast.LENGTH_LONG).show();
