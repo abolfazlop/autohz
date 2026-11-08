@@ -83,7 +83,7 @@ public final class GameProfileMonitorService extends Service {
         int hz=prefs.getInt(pkg+".refresh",30);
         if(hz!=30&&hz!=60&&hz!=90&&hz!=120)return;
         RootHardwareController.Result save=RootHardwareController.run(
-            "echo MIUI:$(settings get secure miui_refresh_rate); echo MIN:$(settings get system min_refresh_rate); echo PEAK:$(settings get system peak_refresh_rate); echo USER:$(settings get system user_refresh_rate)",5000);
+            "echo MIUI:$(settings get secure miui_refresh_rate); echo MIN:$(settings get system min_refresh_rate); echo PEAK:$(settings get system peak_refresh_rate); echo USER:$(settings get secure user_refresh_rate)",5000);
         if(!save.ok())return;
         long miui=-1,min=-1,peak=-1,user=-1;
         for(String line:save.output.split("\\r?\\n")){
@@ -98,7 +98,7 @@ public final class GameProfileMonitorService extends Service {
             "w=$(echo $size | cut -dx -f1); h=$(echo $size | cut -dx -f2); "+
             "cmd display set-user-preferred-display-mode $w $h "+hz+" 0 && "+
             "settings put secure miui_refresh_rate "+hz+" && settings put system min_refresh_rate "+hz+
-            " && settings put system peak_refresh_rate "+hz+" && settings put system user_refresh_rate "+hz;
+            " && settings put system peak_refresh_rate "+hz+" && settings put secure user_refresh_rate 1;
         RootHardwareController.Result r=RootHardwareController.run(script,7000);
         Log.i(TAG,"Game refresh "+hz+" Hz exit="+r.exitCode+" output="+r.output);
     }
@@ -111,7 +111,7 @@ public final class GameProfileMonitorService extends Service {
         if(miui<0)script.append("settings delete secure miui_refresh_rate; ");else script.append("settings put secure miui_refresh_rate ").append(miui).append("; ");
         if(min<0)script.append("settings delete system min_refresh_rate; ");else script.append("settings put system min_refresh_rate ").append(min).append("; ");
         if(peak<0)script.append("settings delete system peak_refresh_rate; ");else script.append("settings put system peak_refresh_rate ").append(peak).append("; ");
-        if(user<0)script.append("settings delete system user_refresh_rate; ");else script.append("settings put system user_refresh_rate ").append(user).append("; ");
+        if(user<0)script.append("settings delete secure user_refresh_rate; ");else script.append("settings put secure user_refresh_rate ").append(user).append("; ");
         script.append("cmd display clear-user-preferred-display-mode 0");
         RootHardwareController.Result r=RootHardwareController.run(script.toString(),7000);
         if(!r.ok())Log.e(TAG,"Game refresh restore failed: "+r.output);
