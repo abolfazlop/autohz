@@ -398,7 +398,7 @@ public class MainActivity extends Activity {
 
         Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
-        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");applyGameQuickToggles(pkg);applyGameDisplaySound(pkg);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
+        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameQuickToggles(pkg);applyGameDisplaySound(pkg);startActivity(i);startGameRestoreMonitor(pkg);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
     }
 
@@ -438,12 +438,56 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void saveGameRestoreState(String pkg){
+        RootHardwareController.Result r=RootHardwareController.run(
+            "echo BRIGHTNESS:$(settings get system screen_brightness); "+
+            "echo VOLUME:$(cmd media_session volume --stream 3 --get 2>/dev/null | sed -n 's/.*volume=\\([0-9]*\\).*/\\1/p')",5000);
+        int brightness=readTaggedInt(r.output,"BRIGHTNESS:",-1);
+        int volume=readTaggedInt(r.output,"VOLUME:",-1);
+        android.content.SharedPreferences.Editor e=gamePrefs.edit();
+        e.putInt(profileKey(pkg,"restore_brightness"),brightness);
+        e.putInt(profileKey(pkg,"restore_volume"),volume);
+        e.putBoolean(profileKey(pkg,"restore_pending"),true);
+        e.apply();
+    }
+
+    private int readTaggedInt(String output,String tag,int fallback){
+        try{for(String line:output.split("\\r?\\n"))if(line.startsWith(tag))return Integer.parseInt(line.substring(tag.length()).trim());}catch(Exception ignored){}
+        return fallback;
+    }
+
+    private final android.os.Handler gameRestoreHandler=new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable gameRestoreRunnable;
+    private void startGameRestoreMonitor(String pkg){
+        if(gameRestoreRunnable!=null)gameRestoreHandler.removeCallbacks(gameRestoreRunnable);
+        final boolean[] seenGame={false};
+        gameRestoreRunnable=new Runnable(){public void run(){
+            if(!gamePrefs.getBoolean(profileKey(pkg,"restore_pending"),false))return;
+            RootHardwareController.Result fg=RootHardwareController.run(
+                "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'",3000);
+            boolean active=fg.ok()&&fg.output.contains(pkg);
+            if(active)seenGame[0]=true;
+            else if(seenGame[0]){restoreGameState(pkg);gameRestoreRunnable=null;return;}
+            gameRestoreHandler.postDelayed(this,1200);
+        }};
+        gameRestoreHandler.postDelayed(gameRestoreRunnable,1200);
+    }
+
+    private void restoreGameState(String pkg){
+        int brightness=gamePrefs.getInt(profileKey(pkg,"restore_brightness"),-1);
+        int volume=gamePrefs.getInt(profileKey(pkg,"restore_volume"),-1);
+        StringBuilder script=new StringBuilder();
+        if(brightness>=0)script.append("settings put system screen_brightness ").append(Math.max(0,Math.min(255,brightness))).append("; ");
+        if(volume>=0)script.append("cmd media_session volume --stream 3 --set ").append(Math.max(0,Math.min(100,volume))).append("; ");
+        RootHardwareController.Result r=RootHardwareController.run(script.toString(),7000);
+        gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
+        if(!r.ok())android.util.Log.e("PulseXt","Restore after game failed: "+r.output);
+    }
+
     private void applyGameDisplaySound(String pkg){
-        int brightness=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"brightness"),70)));
         int volume=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)));
-        int brightnessLevel=Math.round(brightness*255f/100f);
         int volumeLevel=Math.round(volume*15f/100f);
-        String script="settings put system screen_brightness "+brightnessLevel+
+        String script="settings put system screen_brightness 255"+
             " && cmd media_session volume --stream 3 --set "+volumeLevel;
         RootHardwareController.Result r=RootHardwareController.run(script,8000);
         if(!r.ok())android.util.Log.e("PulseXt","Display/sound apply failed: "+r.output);
