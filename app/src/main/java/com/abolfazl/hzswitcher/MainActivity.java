@@ -398,7 +398,7 @@ public class MainActivity extends Activity {
 
         Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
-        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
+        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");applyGameQuickToggles(pkg);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
     }
 
@@ -417,8 +417,8 @@ public class MainActivity extends Activity {
             gamePrefs.edit().putBoolean(profileKey(pkg,"quick_toggles_expanded"),next).apply();
         };
         header.setOnClickListener(toggle);card.setOnClickListener(toggle);
-        String[] names={"Wi-Fi","Location","Battery saver","Hotspot","Bluetooth","DND","Mute"};
-        String[] keys={"wifi","location","battery_saver","hotspot","bluetooth","dnd","mute"};
+        String[] names={"Wi-Fi","Mobile data","Airplane mode","Location","Battery saver","Hotspot","Bluetooth","DND","Mute"};
+        String[] keys={"wifi","mobile_data","airplane","location","battery_saver","hotspot","bluetooth","dnd","mute"};
         String[] values={"Unchanged","On","Off"};
         for(int i=0;i<names.length;i++){
             final String toggleKey=keys[i];
@@ -435,6 +435,35 @@ public class MainActivity extends Activity {
                     showGameEditor(pkg,labelForPackage(pkg));
                 });
             }
+        }
+    }
+
+    private void applyGameQuickToggles(String pkg){
+        String[] keys={"wifi","mobile_data","airplane","location","battery_saver","hotspot","bluetooth","dnd","mute"};
+        java.util.ArrayList<String> commands=new java.util.ArrayList<>();
+        for(String key:keys){
+            String value=gamePrefs.getString(profileKey(pkg,"quick_"+key),"Unchanged");
+            if(value.equals("Unchanged"))continue;
+            boolean on=value.equals("On");
+            if(key.equals("wifi"))commands.add("svc wifi "+(on?"enable":"disable"));
+            else if(key.equals("mobile_data"))commands.add("svc data "+(on?"enable":"disable"));
+            else if(key.equals("airplane")){
+                commands.add("settings put global airplane_mode_on "+(on?"1":"0"));
+                commands.add("am broadcast -a android.intent.action.AIRPLANE_MODE --ez state "+(on?"true":"false"));
+            }else if(key.equals("location"))commands.add("cmd location set-location-enabled "+(on?"true":"false"));
+            else if(key.equals("battery_saver"))commands.add("cmd power set-mode "+(on?"1":"0"));
+            else if(key.equals("hotspot"))commands.add("cmd connectivity "+(on?"tether start":"tether stop"));
+            else if(key.equals("bluetooth"))commands.add("svc bluetooth "+(on?"enable":"disable"));
+            else if(key.equals("dnd"))commands.add("cmd notification set_dnd "+(on?"on":"off"));
+            else if(key.equals("mute"))commands.add("cmd media_session volume --stream 3 --set "+(on?"0":"5"));
+        }
+        if(commands.isEmpty())return;
+        StringBuilder script=new StringBuilder();
+        for(String command:commands)script.append(command).append(" || echo PULSEXＴ_FAILED:").append(command.replace("'","")).append("\\n");
+        RootHardwareController.Result result=RootHardwareController.run(script.toString(),10000);
+        if(!result.ok()||result.output.contains("PULSEXＴ_FAILED")){
+            Toast.makeText(this,"Some game toggles could not be applied. Check root access and Android support.",Toast.LENGTH_LONG).show();
+            android.util.Log.e("PulseXt","Quick toggle apply: "+result.output);
         }
     }
 
