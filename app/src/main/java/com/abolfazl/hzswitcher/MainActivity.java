@@ -398,7 +398,7 @@ public class MainActivity extends Activity {
 
         Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
-        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameQuickToggles(pkg);applyGameDisplaySound(pkg);Intent monitor=new Intent(this,GameProfileMonitorService.class);monitor.putExtra("game_package",pkg);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
+        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameDisplaySound(pkg);applyGameQuickToggles(pkg);Intent monitor=new Intent(this,GameProfileMonitorService.class);monitor.putExtra("game_package",pkg);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
     }
 
@@ -417,8 +417,8 @@ public class MainActivity extends Activity {
             gamePrefs.edit().putBoolean(profileKey(pkg,"quick_toggles_expanded"),next).apply();
         };
         header.setOnClickListener(toggle);card.setOnClickListener(toggle);
-        String[] names={"Wi-Fi","Mobile data","Airplane mode","Location","Battery saver","Hotspot","Bluetooth","DND","Mute"};
-        String[] keys={"wifi","mobile_data","airplane","location","battery_saver","hotspot","bluetooth","dnd","mute"};
+        String[] names={"Wi-Fi","Mobile data","Airplane mode","Location","Battery saver","Hotspot","Bluetooth","DND","Mute","Auto Brightness"};
+        String[] keys={"wifi","mobile_data","airplane","location","battery_saver","hotspot","bluetooth","dnd","mute","auto_brightness"};
         String[] values={"Unchanged","On","Off"};
         for(int i=0;i<names.length;i++){
             final String toggleKey=keys[i];
@@ -581,6 +581,7 @@ public class MainActivity extends Activity {
             else if(key.equals("bluetooth"))commands.add("svc bluetooth "+(on?"enable":"disable"));
             else if(key.equals("dnd"))commands.add("cmd notification set_dnd "+(on?"on":"off"));
             else if(key.equals("mute"))commands.add("cmd media_session volume --stream 3 --set "+(on?"0":"5"));
+            else if(key.equals("auto_brightness"))commands.add("settings put system screen_brightness_mode "+(on?"1":"0")+" && [ \"$(settings get system screen_brightness_mode)\" = \""+(on?"1":"0")+"\" ]");
         }
         if(commands.isEmpty())return;
         StringBuilder script=new StringBuilder();
