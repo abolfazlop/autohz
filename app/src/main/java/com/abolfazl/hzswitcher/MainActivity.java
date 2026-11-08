@@ -142,9 +142,9 @@ public class MainActivity extends Activity {
                 wallpaper.setImageBitmap(bitmap);
             }catch(Exception ignored){ wallpaper.setBackgroundColor(0xFF100D16); }
             wallpaper.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            wallpaper.setAdjustViewBounds(false);
+            wallpaper.setLayerType(View.LAYER_TYPE_HARDWARE,null);
             aboutRoot.addView(wallpaper,new FrameLayout.LayoutParams(-1,-1));
-            View shade=new View(this); shade.setBackgroundColor(0x5508050D);
-            aboutRoot.addView(shade,new FrameLayout.LayoutParams(-1,-1));
             page.setBackgroundColor(Color.TRANSPARENT);
             aboutRoot.addView(page,new FrameLayout.LayoutParams(-1,-1));
             pageHost.addView(aboutRoot,new LinearLayout.LayoutParams(-1,-1));
