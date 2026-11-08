@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.*;
 import android.hardware.display.DisplayManager;
 import android.view.Display;
@@ -22,7 +23,7 @@ public class MainActivity extends Activity {
     private android.content.SharedPreferences prefs;
     private TextView rootLabel, rootDetail, rateValue, rateCaption, resultLabel, deviceLabel, brightnessValue;
     private SeekBar brightnessSlider;
-    private final int[] rateOptions={30,40,48,50,60,72,80,90,96,100,120};
+    private final int[] rateOptions={30,60,90,120};
     private final ArrayList<Button> rateButtons=new ArrayList<>();
     private Button restoreButton;
     private int selectedHz=120;
@@ -68,12 +69,23 @@ public class MainActivity extends Activity {
         TextView appName=text("AutoHz",14,TEXT,true);
         top.addView(appName,new LinearLayout.LayoutParams(0,-2,1));
         TextView topIcon=text("☼   ⚙",22,0xFFBBBBBB,false); top.addView(topIcon);
+        topIcon.setOnClickListener(v->showSettings());
         appRoot.addView(top,new LinearLayout.LayoutParams(-1,-2));
         pageHost=column();
         LinearLayout.LayoutParams hostParams=new LinearLayout.LayoutParams(-1,0,1);
         appRoot.addView(pageHost,hostParams);
         bottomBar=row(); bottomBar.setBackgroundColor(0xFF101010); pad(bottomBar,12,8,12,8);
         appRoot.addView(bottomBar,new LinearLayout.LayoutParams(-1,dp(68)));
+        appRoot.setOnApplyWindowInsetsListener((v,insets)->{
+            int navBottom=0;
+            if(android.os.Build.VERSION.SDK_INT>=30) navBottom=insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+            else if(android.os.Build.VERSION.SDK_INT>=21) navBottom=insets.getSystemWindowInsetBottom();
+            bottomBar.setPadding(dp(12),dp(8),dp(12),dp(8)+navBottom);
+            ViewGroup.LayoutParams navParams=bottomBar.getLayoutParams();
+            navParams.height=dp(68)+navBottom;
+            bottomBar.setLayoutParams(navParams);
+            return insets;
+        });
         setContentView(appRoot); showHome();
     }
 
@@ -86,7 +98,7 @@ public class MainActivity extends Activity {
             heading.addView(back,new LinearLayout.LayoutParams(dp(42),dp(48)));
             back.setOnClickListener(v->showHome());
         }
-        TextView name=text(title,34,TEXT,false);
+        TextView name=text(title,32,TEXT,false);
         heading.addView(name,new LinearLayout.LayoutParams(0,-2,1)); page.addView(heading);
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(false);
         scroll.addView(content); page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
@@ -127,7 +139,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2); tp.bottomMargin=dp(18); c.addView(tip,tp);
         LinearLayout list=column(); c.addView(list);
         addFeatureRow(list,"☼","Display Brightness","Adjust screen brightness",()->showBrightness());
-        addFeatureRow(list,"▣","Refresh Rate","Choose 30–120 Hz display modes",()->showRefreshRate());
+        addFeatureRow(list,"▣","Refresh Rate","Choose 30 / 60 / 90 / 120 Hz",()->showRefreshRate());
         addFeatureRow(list,"⚙","System Tools","Device status and system utilities",()->showSettings());
         addFeatureRow(list,"ⓘ","About AutoHz","Version and app information",()->showAbout());
         showPage("Home",c);
@@ -179,6 +191,9 @@ public class MainActivity extends Activity {
         rootDetail=text("Checking superuser permission.",13,MUTED,false); LinearLayout.LayoutParams dp0=new LinearLayout.LayoutParams(-1,-2); dp0.topMargin=dp(10); rootCard.addView(rootDetail,dp0);
         restoreButton=new Button(this); restoreButton.setText("Restore previous settings"); restoreButton.setAllCaps(false); restoreButton.setTextColor(TEXT); restoreButton.setBackground(shape(0xFF303030,18,0));
         LinearLayout.LayoutParams rb=new LinearLayout.LayoutParams(-1,dp(54)); rb.topMargin=dp(16); c.addView(restoreButton,rb); restoreButton.setOnClickListener(v->restoreSettings());
+        rootLabel.setText(rootReady?"GRANTED":"NOT GRANTED");
+        rootLabel.setTextColor(rootReady?ACCENT:0xFFFF9B9B);
+        rootDetail.setText(rootReady?"Root shell verified.":"Root access is required for system changes.");
         showPage("Settings",c); renderChoices();
     }
 
@@ -302,19 +317,26 @@ public class MainActivity extends Activity {
             String message="";
             try{
                 if(!prefs.getBoolean("has_backup",false))saveBackup();
+                // HyperOS 3: use the vendor secure policy and Android's GLOBAL
+                // preferred display mode. Omitting DISPLAY_ID avoids a display-local override.
                 String cmd="settings put secure user_refresh_rate 1"+
                     " && settings put secure miui_refresh_rate "+hz+
-                    " && cmd display set-user-preferred-display-mode "+mode.getPhysicalWidth()+" "+mode.getPhysicalHeight()+" "+hz+" 0";
+                    " && cmd display set-user-preferred-display-mode "+mode.getPhysicalWidth()+" "+mode.getPhysicalHeight()+" "+hz;
                 CommandResult applied=execRoot(cmd);
                 if(applied.exit!=0||applied.timeout)throw new RuntimeException("Apply command failed: "+applied.output);
-                Thread.sleep(900);
+                Thread.sleep(1400);
+                CommandResult settingCheck=execRoot("settings get secure miui_refresh_rate");
+                if(!settingCheck.output.trim().equals(String.valueOf(hz)))
+                    throw new RuntimeException("HyperOS changed miui_refresh_rate to "+settingCheck.output+" (requested "+hz+")");
+                CommandResult preferredCheck=execRoot("cmd display get-user-preferred-display-mode");
+                prefs.edit().putInt("selected_refresh_rate",hz).apply();
                 CommandResult verify=execRoot("dumpsys display");
                 String dump=verify.output;
                 java.util.regex.Matcher active=java.util.regex.Pattern.compile("mActiveRenderFrameRate=([0-9]+(?:\\\\.[0-9]+)?)").matcher(dump);
                 boolean confirmed=false;
                 while(active.find()){try{if(Math.abs(Float.parseFloat(active.group(1))-hz)<1.2f){confirmed=true;break;}}catch(Exception ignored){}}
                 if(!confirmed){java.util.regex.Matcher peak=java.util.regex.Pattern.compile("peakRefreshRate=([0-9]+(?:\\\\.[0-9]+)?)").matcher(dump);while(peak.find()){try{if(Math.abs(Float.parseFloat(peak.group(1))-hz)<1.2f){confirmed=true;break;}}catch(Exception ignored){}}}
-                message=confirmed?"Applied. Display diagnostics contain the requested rate.":"Command accepted, but active refresh rate could not be confirmed. Check the live display mode.";
+                message=confirmed?"Applied and verified: "+hz+" Hz.":"Preference saved ("+hz+" Hz), but active mode is currently different. HyperOS policy may be overriding it.\n"+preferredCheck.output;
                 lastLog=message;
             }catch(Exception e){message="FAILED: "+e.getMessage();lastLog=message;}
             final String m=message;
@@ -335,13 +357,26 @@ public class MainActivity extends Activity {
                 String cmd=value.equals("null")||value.isEmpty()?"settings delete "+a[0]+" "+a[1]:"settings put "+a[0]+" "+a[1]+" "+quote(value);
                 CommandResult r=execRoot(cmd);if(r.exit!=0)errors.append(pair).append(": ").append(r.output).append("\n");
             }
-            CommandResult clear=execRoot("cmd display clear-user-preferred-display-mode 0");
+            CommandResult clear=execRoot("cmd display clear-user-preferred-display-mode");
             prefs.edit().remove("backup").putBoolean("has_backup",false).apply();
             String msg=errors.length()==0?"Previous settings restored.":"Restore completed with warnings: "+errors;
             runOnUiThread(()->{busy=false;resultLabel.setText(msg);renderChoices();refreshDisplay();});
         });
     }
 
-    @Override protected void onResume(){super.onResume();refreshDisplay();if(rootReady&&brightnessSlider!=null)loadBrightness();}
+    @Override protected void onResume(){
+        super.onResume(); refreshDisplay();
+        if(rootReady&&brightnessSlider!=null)loadBrightness();
+        if(rootReady&&"Refresh Rate".equals(currentPage))loadSavedRefreshRate();
+    }
+    private void loadSavedRefreshRate(){
+        executor.execute(()->{
+            CommandResult r=execRoot("settings get secure miui_refresh_rate");
+            int value=prefs.getInt("selected_refresh_rate",120);
+            try{int stored=Integer.parseInt(r.output.trim());if(stored==30||stored==60||stored==90||stored==120)value=stored;}catch(Exception ignored){}
+            final int hz=value;
+            runOnUiThread(()->{selectedHz=hz;renderChoices();});
+        });
+    }
     @Override protected void onDestroy(){super.onDestroy();executor.shutdownNow();}
 }
