@@ -421,16 +421,17 @@ public class MainActivity extends Activity {
         String[] keys={"wifi","location","battery_saver","hotspot","bluetooth","dnd","mute"};
         String[] values={"Unchanged","On","Off"};
         for(int i=0;i<names.length;i++){
+            final String toggleKey=keys[i];
             LinearLayout item=column();LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,-2);ip.topMargin=dp(8);options.addView(item,ip);
             item.addView(text(names[i],13,TEXT,true));
             LinearLayout choices=row();LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(38));rp.topMargin=dp(5);item.addView(choices,rp);
-            String saved=gamePrefs.getString(profileKey(pkg,"quick_"+keys[i]),"Unchanged");
+            String saved=gamePrefs.getString(profileKey(pkg,"quick_"+toggleKey),"Unchanged");
             for(String value:values){
                 Button b=new Button(this);b.setText(value);b.setAllCaps(false);b.setTextSize(10);b.setMinHeight(0);b.setMinimumHeight(0);b.setTextColor(TEXT);
                 b.setBackground(shape(saved.equals(value)?0xFF49336A:PANEL2,10,saved.equals(value)?ACCENT:0));
                 LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);choices.addView(b,bp);
                 b.setOnClickListener(v->{
-                    gamePrefs.edit().putString(profileKey(pkg,"quick_"+keys[i]),value).apply();
+                    gamePrefs.edit().putString(profileKey(pkg,"quick_"+toggleKey),value).apply();
                     showGameEditor(pkg,labelForPackage(pkg));
                 });
             }
