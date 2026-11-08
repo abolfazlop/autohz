@@ -1,66 +1,67 @@
 #!/system/bin/sh
 MODDIR=${0%/*}
-CTL="$MODDIR/bin/rodin_ctl"
+CTL="$MODDIR/bin/rodin_essentialctl"
 cmd=${1:-status}
 rate=${2:-}
 DEVICE="$(getprop ro.product.device)"
 BASE=/data/adb/pulsext-touch
-STATE="$BASE/rodin-state"
-
 if [ "$DEVICE" != "rodin" ]; then
   echo "error=unsupported_device"
   echo "device=$DEVICE"
   echo "supported_device=rodin"
   exit 3
 fi
-if [ ! -x "$CTL" ]; then echo "error=rodin_ctl_missing"; exit 4; fi
+if [ ! -x "$CTL" ]; then echo "error=rodin_essentialctl_missing"; exit 4; fi
 
 snapshot() {
   "$CTL" "GET snapshot" 2>&1
 }
-
+field() {
+  key="$1"
+  printf '%s\n' "$2" | sed 's/^OK //' | tr ';' '\n' | sed -n "s/^$key=//p" | head -n 1
+}
 case "$cmd" in
   probe|status)
     echo "engine=PulseXtTouchEngine"
     echo "backend=Rodin-Essential-v1.18.5"
     echo "device=$DEVICE"
-    if pidof rodin_daemon >/dev/null 2>&1; then echo "daemon=running"; else echo "daemon=stopped"; fi
-    snapshot
+    "$CTL" PING 2>&1
+    if pidof rodin_essentiald >/dev/null 2>&1; then echo "daemon=running"; else echo "daemon=stopped"; fi
+    live="$(snapshot)"
+    echo "snapshot=$live"
+    echo "touch=$(field touch "$live")"
+    echo "touch_ack=$(field touch_ack "$live")"
+    echo "touch_resampler_ready=$(field touch_resampler_ready "$live")"
     ;;
   apply)
-    case "$rate" in
-      240) profile=1 ;;
-      480) profile=2 ;;
-      1000) profile=3 ;;
-      0) profile=0 ;;
-      *) echo "error=invalid_rate"; exit 2 ;;
-    esac
+    case "$rate" in 240) profile=1;; 480) profile=2;; 1000) profile=3;; 0) profile=0;; *) echo "error=invalid_rate"; exit 2;; esac
     response="$("$CTL" "SET touch $profile" 2>&1)"
-    echo "$response"
-    echo "$response" | grep -q '^OK applied$' || exit 5
+    echo "command=$response"
+    case "$response" in "OK "*) ;; *) echo "error=touch_command_rejected"; exit 5;; esac
     live="$(snapshot)"
-    echo "$live"
-    echo "$live" | grep -q "^touch=$profile$" || { echo "error=touch_profile_readback_mismatch"; exit 6; }
+    touch="$(field touch "$live")"
+    ack="$(field touch_ack "$live")"
+    ready="$(field touch_resampler_ready "$live")"
+    echo "touch=$touch"
+    echo "touch_ack=$ack"
+    echo "touch_resampler_ready=$ready"
+    [ "$touch" = "$profile" ] || { echo "error=touch_profile_readback_mismatch"; exit 6; }
     if [ "$profile" = 3 ]; then
-      echo "$live" | grep -q '^touch_resampler_ready=1000$' || { echo "error=1000hz_resampler_not_ready"; exit 7; }
-      echo "$live" | grep -q '^touch_ack=1$' || { echo "error=touch_apply_not_acknowledged"; exit 8; }
-    elif [ "$profile" = 0 ]; then
-      echo "$live" | grep -q '^touch_ack=-1$' || { echo "error=touch_restore_not_acknowledged"; exit 8; }
-    else
-      echo "$live" | grep -q '^touch_ack=1$' || { echo "error=touch_apply_not_acknowledged"; exit 8; }
+      [ "$ready" = 1000 ] || { echo "error=1000hz_resampler_not_ready"; exit 7; }
     fi
+    [ "$ack" = 1 ] || { echo "error=touch_apply_not_acknowledged"; exit 8; }
     ;;
   restore)
     response="$("$CTL" "SET touch 0" 2>&1)"
-    echo "$response"
-    echo "$response" | grep -q '^OK applied$' || exit 5
+    echo "command=$response"
+    case "$response" in "OK "*) ;; *) echo "error=touch_restore_rejected"; exit 5;; esac
     live="$(snapshot)"
-    echo "$live"
-    echo "$live" | grep -q '^touch=-1$' || { echo "error=touch_restore_state_mismatch"; exit 6; }
-    echo "$live" | grep -q '^touch_ack=-1$' || { echo "error=touch_restore_not_acknowledged"; exit 8; }
+    touch="$(field touch "$live")"
+    ack="$(field touch_ack "$live")"
+    echo "touch=$touch"
+    echo "touch_ack=$ack"
+    [ "$touch" = 0 ] || { echo "error=touch_restore_state_mismatch"; exit 6; }
+    [ "$ack" = -1 ] || { echo "error=touch_restore_not_acknowledged"; exit 8; }
     ;;
-  *)
-    echo "usage: pulsext-touchctl {probe|status|apply 240|480|1000|restore}"
-    exit 2
-    ;;
+  *) echo "usage: pulsext-touchctl {probe|status|apply 240|480|1000|restore}"; exit 2 ;;
 esac
