@@ -203,51 +203,24 @@ public final class GameProfileMonitorService extends Service {
         return true;
     }
 
-    // Safe Goodix-only backend. Other panels and 1000 Hz require Rodin's privileged AIDL/input daemon.
+    // No generic Android API exposes a universal touch sampling-rate control.
+    // Do not write guessed Goodix sysfs values: the real Rodin implementation
+    // uses Xiaomi ITouchFeature/THP handling and, for 1000 Hz, a native input
+    // event resampler running with privileged access.
     private boolean applyGameTouchProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
         int profile=prefs.getInt(pkg+".touch_rate",0);
         if(profile==0)return restoreGameTouchProfile(pkg);
-        if(profile==1000){
-            Log.w(TAG,"Touch 1000 Hz requires a privileged input resampler; unsupported by this APK backend");
-            return false;
-        }
-        if(profile!=240&&profile!=480)return false;
-        final String node="/sys/devices/platform/goodix_ts.0/switch_report_rate";
-        RootHardwareController.Result probe=RootHardwareController.run("[ -r "+node+" ] && [ -w "+node+" ] && cat "+node,4000);
-        if(!probe.ok()){
-            Log.w(TAG,"Touch profile unsupported: Goodix report-rate node unavailable: "+probe.output);
-            return false;
-        }
-        String original=probe.output.trim().split("\\s+")[0];
-        if(!original.equals("0")&&!original.equals("1")){
-            Log.w(TAG,"Unknown Goodix report-rate value; refusing to modify: "+original);
-            return false;
-        }
-        if(!prefs.getBoolean(pkg+".touch_backup_valid",false)){
-            prefs.edit().putString(pkg+".restore_touch_value",original).putBoolean(pkg+".touch_backup_valid",true).commit();
-        }
-        String target=profile==240?"0":"1";
-        RootHardwareController.Result write=RootHardwareController.run("printf '%s' '"+target+"' > "+node+" && cat "+node,5000);
-        boolean ok=write.ok()&&write.output.trim().startsWith(target);
-        Log.i(TAG,"Touch profile requested="+profile+" verified="+ok+" readback="+write.output);
-        return ok;
+        Log.w(TAG,"Touch sampling profile "+profile+" Hz is selected but cannot be safely applied: native Rodin-compatible daemon is not integrated yet");
+        return false;
     }
 
     private boolean restoreGameTouchProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
-        if(!prefs.getBoolean(pkg+".touch_backup_valid",false))return true;
-        String original=prefs.getString(pkg+".restore_touch_value","");
-        if(!original.equals("0")&&!original.equals("1")){
-            Log.e(TAG,"Invalid saved touch report-rate value; refusing restore");
-            return false;
-        }
-        final String node="/sys/devices/platform/goodix_ts.0/switch_report_rate";
-        RootHardwareController.Result result=RootHardwareController.run("[ -w "+node+" ] && printf '%s' '"+original+"' > "+node+" && cat "+node,5000);
-        boolean ok=result.ok()&&result.output.trim().startsWith(original);
-        if(ok)prefs.edit().putBoolean(pkg+".touch_backup_valid",false).remove(pkg+".restore_touch_value").apply();
-        else Log.e(TAG,"Touch restore failed: "+result.output);
-        return ok;
+        // This APK backend no longer writes guessed touch nodes. If an old
+        // experimental backup exists, leave it untouched rather than guessing
+        // which vendor node/value belongs to this device.
+        return !prefs.getBoolean(pkg+".touch_backup_valid",false);
     }
 
     /** Apply only controls enabled by the saved game profile, using live kernel bounds. */
