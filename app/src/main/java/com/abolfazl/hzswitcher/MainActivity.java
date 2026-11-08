@@ -442,12 +442,10 @@ public class MainActivity extends Activity {
         int brightness=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"brightness"),70)));
         int volume=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)));
         int brightnessLevel=Math.round(brightness*255f/100f);
-        // Android media stream volume is normalized using the device's current music-stream maximum.
-        RootHardwareController.Result r=RootHardwareController.run(
-            "settings put system screen_brightness "+brightnessLevel+
-            " && max=\\$(cmd media_session volume --stream 3 --get 2>/dev/null | sed -n 's/.*max=\\([0-9]*\\).*/\\1/p'); "+
-            "[ -n \\"\\$max\\" ] || max=15; level=$((("+volume+"*max+50)/100)); "+
-            "cmd media_session volume --stream 3 --set \\"\\$level\\" ",8000);
+        int volumeLevel=Math.round(volume*15f/100f);
+        String script="settings put system screen_brightness "+brightnessLevel+
+            " && cmd media_session volume --stream 3 --set "+volumeLevel;
+        RootHardwareController.Result r=RootHardwareController.run(script,8000);
         if(!r.ok())android.util.Log.e("PulseXt","Display/sound apply failed: "+r.output);
     }
 
