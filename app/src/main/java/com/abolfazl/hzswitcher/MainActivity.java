@@ -353,9 +353,26 @@ public class MainActivity extends Activity {
         addClusterFrequency(section,pkg,id,"Minimum "+hardware+" frequency","min",hardware.equals("GPU")?100:300,hardware.equals("GPU")?3000:5000,hardware.equals("GPU")?100:300);
         TextView governorLabel=text(hardware+" governor",12,TEXT,true);LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(-1,-2);glp.topMargin=dp(12);section.addView(governorLabel,glp);
         Spinner governors=new Spinner(this);
+        governors.setBackground(shape(0xFF49336A,10,0xFF8F65D8));
+        if(android.os.Build.VERSION.SDK_INT>=16)governors.setPopupBackgroundDrawable(shape(0xFF211A2D,12,0xFF493765));
         String[] options={"powersave","schedutil","performance","ondemand","conservative"};
-        ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,options);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);governors.setAdapter(adapter);
+        ArrayAdapter<String> adapter=new ArrayAdapter<String>(this,android.R.layout.simple_spinner_item,options){
+            private TextView styled(String value,boolean dropdown){
+                TextView item=new TextView(MainActivity.this);
+                item.setText(value);item.setTextColor(0xFFFFFFFF);item.setTextSize(14);
+                item.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                item.setPadding(dp(14),dp(10),dp(14),dp(10));
+                if(dropdown)item.setBackgroundColor(0xFF211A2D);
+                return item;
+            }
+            @Override public View getView(int position,View convertView,ViewGroup parent){
+                return styled(getItem(position),false);
+            }
+            @Override public View getDropDownView(int position,View convertView,ViewGroup parent){
+                return styled(getItem(position),true);
+            }
+        };
+        governors.setAdapter(adapter);
         String saved=gamePrefs.getString(profileKey(pkg,id+"_governor"),"powersave");
         int selected=0;for(int i=0;i<options.length;i++)if(options[i].equals(saved))selected=i;
         governors.setSelection(selected);section.addView(governors);
