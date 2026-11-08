@@ -165,7 +165,7 @@ public class MainActivity extends Activity {
             public void beforeTextChanged(CharSequence s,int st,int count,int after){}
             public void onTextChanged(CharSequence q,int st,int before,int count){
                 String term=q.toString().toLowerCase(Locale.ROOT);
-                for(int i=0;i<list.getChildCount();i++){View v=list.getChildAt(i);TextView label=(TextView)((LinearLayout)v).getChildAt(1) instanceof LinearLayout ? (TextView)((LinearLayout)((LinearLayout)v).getChildAt(1)).getChildAt(0) : null;
+                for(int i=0;i<list.getChildCount();i++){View v=list.getChildAt(i);View labelsView=((LinearLayout)v).getChildAt(1);TextView label=null;if(labelsView instanceof LinearLayout)label=(TextView)((LinearLayout)labelsView).getChildAt(0);
                     if(label!=null)v.setVisibility(label.getText().toString().toLowerCase(Locale.ROOT).contains(term)?View.VISIBLE:View.GONE);
                 }
             }
