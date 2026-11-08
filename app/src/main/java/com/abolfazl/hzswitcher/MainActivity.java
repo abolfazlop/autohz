@@ -441,17 +441,14 @@ public class MainActivity extends Activity {
     private void saveGameRestoreState(String pkg){
         RootHardwareController.Result r=RootHardwareController.run(
             "echo BRIGHTNESS:$(settings get system screen_brightness); "+
-            "echo BRIGHTNESS_MODE:$(settings get system screen_brightness_mode); "+
-            "v=$(cmd media_session volume --stream 3 --get 2>/dev/null); "+
-            "echo VOLUME_INFO:$(echo \"$v\" | sed -n 's/.*volume=\\([0-9]*\\).*/\\1/p'); "+
-            "echo VOLUME_MAX:$(echo \"$v\" | sed -n 's/.*max=\\([0-9]*\\).*/\\1/p')",5000);
+            "echo BRIGHTNESS_MODE:$(settings get system screen_brightness_mode)",5000);
         int brightness=readTaggedInt(r.output,"BRIGHTNESS:",-1);
         int mode=readTaggedInt(r.output,"BRIGHTNESS_MODE:",-1);
-        int volume=readTaggedInt(r.output,"VOLUME_INFO:",-1);
-        int volumeMax=readTaggedInt(r.output,"VOLUME_MAX:",-1);
-        if(volumeMax<1)volumeMax=15;
-        if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1 ){
-            android.util.Log.e("PulseXt","Could not capture original brightness state: "+r.output);
+        android.media.AudioManager audio=(android.media.AudioManager)getSystemService(android.content.Context.AUDIO_SERVICE);
+        int volume=audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
+        int volumeMax=audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+        if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1||volumeMax<1){
+            android.util.Log.e("PulseXt","Could not capture original game state: "+r.output);
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
             return;
         }
@@ -510,32 +507,35 @@ public class MainActivity extends Activity {
         int brightness=gamePrefs.getInt(profileKey(pkg,"restore_brightness"),-1);
         int mode=gamePrefs.getInt(profileKey(pkg,"restore_brightness_mode"),-1);
         int volume=gamePrefs.getInt(profileKey(pkg,"restore_volume"),-1);
-        int volumeMax=gamePrefs.getInt(profileKey(pkg,"restore_volume_max"),15);
+        int volumeMax=gamePrefs.getInt(profileKey(pkg,"restore_volume_max"),-1);
         if(brightness<0||brightness>255||mode<0||mode>1){
-            android.util.Log.e("PulseXt","Saved brightness state invalid; refusing to overwrite current display setting");
+            android.util.Log.e("PulseXt","Saved brightness state invalid");
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
             return;
         }
-        boolean displayOk=false;
         RootHardwareController.Result display=RootHardwareController.run(
             "settings put system screen_brightness_mode 0 && "+
             "settings put system screen_brightness "+brightness+" && "+
             "settings put system screen_brightness_mode "+mode+" && "+
             "[ \"$(settings get system screen_brightness)\" = \""+brightness+"\" ] && "+
             "[ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]",7000);
-        displayOk=display.ok();
-        boolean volumeOk=(volume<0||volumeMax<1);
+        boolean volumeOk=true;
         if(volume>=0&&volumeMax>0){
-            RootHardwareController.Result vr=RootHardwareController.run(
-                "cmd media_session volume --stream 3 --set "+Math.min(volume,volumeMax),5000);
-            volumeOk=vr.ok();
-            if(!volumeOk)android.util.Log.e("PulseXt","Volume restore failed independently: "+vr.output);
+            try{
+                android.media.AudioManager audio=(android.media.AudioManager)getSystemService(android.content.Context.AUDIO_SERVICE);
+                int safe=Math.max(0,Math.min(volume,audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)));
+                audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC,safe,0);
+                volumeOk=audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)==safe;
+            }catch(Exception e){
+                volumeOk=false;
+                android.util.Log.e("PulseXt","AudioManager restore failed",e);
+            }
         }
-        if(displayOk&&volumeOk){
+        if(display.ok()&&volumeOk){
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
-            android.util.Log.i("PulseXt","Original display and volume state restored for "+pkg);
+            android.util.Log.i("PulseXt","Original display and media volume restored for "+pkg);
         }else{
-            android.util.Log.e("PulseXt","Restore incomplete. displayOk="+displayOk+" volumeOk="+volumeOk+" display="+display.output);
+            android.util.Log.e("PulseXt","Restore incomplete displayOk="+display.ok()+" volumeOk="+volumeOk+" output="+display.output);
             gameRestoreHandler.postDelayed(()->executor.execute(()->restoreGameBrightness(pkg)),2500);
         }
     }
@@ -544,17 +544,21 @@ public class MainActivity extends Activity {
         int selectedPercent=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"brightness"),70)));
         int brightnessValue=Math.round(selectedPercent*255f/100f);
         int volumePercent=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)));
-        int volumeMax=readTaggedInt(RootHardwareController.run(
-            "cmd media_session volume --stream 3 --get 2>/dev/null | sed -n 's/.*max=\\([0-9]*\\).*/\\1/p'",4000).output,"",15);
-        if(volumeMax<1)volumeMax=15;
-        int volumeValue=Math.round(volumePercent*volumeMax/100f);
-        String script="settings put system screen_brightness_mode 0 && "+
+        RootHardwareController.Result r=RootHardwareController.run(
+            "settings put system screen_brightness_mode 0 && "+
             "settings put system screen_brightness "+brightnessValue+" && "+
-            "[ \"$(settings get system screen_brightness)\" = \""+brightnessValue+"\" ] && "+
-            "cmd media_session volume --stream 3 --set "+volumeValue;
-        RootHardwareController.Result r=RootHardwareController.run(script,8000);
+            "[ \"$(settings get system screen_brightness)\" = \""+brightnessValue+"\" ]",8000);
+        try{
+            android.media.AudioManager audio=(android.media.AudioManager)getSystemService(android.content.Context.AUDIO_SERVICE);
+            int max=audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+            int target=Math.round(volumePercent*max/100f);
+            audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC,target,0);
+            int actual=audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
+            if(actual!=target)android.util.Log.e("PulseXt","Media volume mismatch expected="+target+" actual="+actual);
+        }catch(Exception e){
+            android.util.Log.e("PulseXt","Game media volume apply failed",e);
+        }
         if(!r.ok())android.util.Log.e("PulseXt","Game brightness apply failed for "+selectedPercent+"%: "+r.output);
-        else android.util.Log.i("PulseXt","Game brightness applied: "+selectedPercent+"% ("+brightnessValue+"/255)");
     }
 
     private void applyGameQuickToggles(String pkg){
