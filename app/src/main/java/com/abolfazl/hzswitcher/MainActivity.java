@@ -396,6 +396,8 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);touchRates.addView(b,bp);
             b.setOnClickListener(v->{int keepScroll=getCurrentPageScrollY();gamePrefs.edit().putInt(profileKey(pkg,"touch_rate"),value).apply();showGameEditor(pkg,label);restorePageScrollY(keepScroll);});
         }
+        TextView touchNote=text("Touch control is hardware-dependent. This build applies and verifies native 240/480 Hz only on supported Goodix panels, then restores the original value after the game closes. 1000 Hz needs a dedicated privileged input-resampling daemon and is not enabled by this APK backend.",11,MUTED,false);
+        LinearLayout.LayoutParams touchNoteParams=new LinearLayout.LayoutParams(-1,-2);touchNoteParams.topMargin=dp(8);c.addView(touchNote,touchNoteParams);
         TextView note=text("Cluster and GPU values are stored in this game's profile. They are not applied to hardware yet; a device-specific, verified sysfs backend is required before enabling writes.",11,MUTED,false);
         LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,-2);np.topMargin=dp(10);c.addView(note,np);
 
