@@ -225,16 +225,7 @@ public class MainActivity extends Activity {
     }
 
 
-    // Game profiles are explicit per-app presets. Android's GameManager shell
-    // command is used through the already verified root shell; unsupported
-    // device/game combinations are reported rather than shown as successful.
-    private String selectedGamePackage;
-    private String selectedGameLabel;
-    private LinearLayout gameListContainer;
-    private TextView selectedGameTitle, gameProfileStatus;
-    private final Map<String,String> gameLabels = new LinkedHashMap<>();
-
-
+    // Per-game settings editor state.
     private LinearLayout gameListContainer;
     private TextView gameProfileStatus;
     private String selectedGamePackage, selectedGameLabel;
