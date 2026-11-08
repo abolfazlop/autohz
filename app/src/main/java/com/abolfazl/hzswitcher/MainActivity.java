@@ -522,11 +522,14 @@ public class MainActivity extends Activity {
     }
 
     private void applyGameDisplaySound(String pkg){
+        int selectedPercent=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"brightness"),70)));
+        int brightnessValue=Math.round(selectedPercent*255f/100f);
         String script="settings put system screen_brightness_mode 0 && "+
-            "settings put system screen_brightness 255 && "+
-            "[ \"$(settings get system screen_brightness)\" = \"255\" ]";
+            "settings put system screen_brightness "+brightnessValue+" && "+
+            "[ \"$(settings get system screen_brightness)\" = \""+brightnessValue+"\" ]";
         RootHardwareController.Result r=RootHardwareController.run(script,8000);
-        if(!r.ok())android.util.Log.e("PulseXt","Game brightness apply failed: "+r.output);
+        if(!r.ok())android.util.Log.e("PulseXt","Game brightness apply failed for "+selectedPercent+"%: "+r.output);
+        else android.util.Log.i("PulseXt","Game brightness applied: "+selectedPercent+"% ("+brightnessValue+"/255)");
     }
 
     private void applyGameQuickToggles(String pkg){
