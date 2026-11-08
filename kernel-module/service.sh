@@ -2,7 +2,7 @@
 MODDIR=${0%/*}
 BASE=/data/adb/pulsext-touch
 STATE="$BASE/rodin-state"
-DAEMON="$MODDIR/bin/rodin_daemon"
+DAEMON="$MODDIR/bin/rodin_essentiald"
 LOG="$BASE/rodin-daemon.log"
 umask 077
 mkdir -p "$BASE" "$STATE"
@@ -18,13 +18,13 @@ if [ "$DEVICE" != "rodin" ]; then
   exit 0
 fi
 
-if [ ! -x "$DAEMON" ] || [ ! -x "$MODDIR/bin/rodin_ctl" ]; then
+if [ ! -x "$DAEMON" ] || [ ! -x "$MODDIR/bin/rodin_essentialctl" ]; then
   echo "error=native_backend_missing; reinstall module from latest Actions artifact" > "$BASE/status"
   exit 1
 fi
 
 while true; do
-  if ! pidof rodin_daemon >/dev/null 2>&1; then
+  if ! pidof rodin_essentiald >/dev/null 2>&1; then
     echo "starting Rodin touch backend" >> "$LOG"
     RODIN_STATE_DIR="$STATE" "$DAEMON" >> "$LOG" 2>&1 &
     PID=$!
