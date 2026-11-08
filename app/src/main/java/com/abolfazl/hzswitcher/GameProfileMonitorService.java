@@ -44,7 +44,7 @@ public final class GameProfileMonitorService extends Service {
                             getSharedPreferences(PREFS,MODE_PRIVATE).edit()
                                 .putBoolean("monitor_seen_game",true).apply();
                             Toast.makeText(GameProfileMonitorService.this,"Game Profile activated",Toast.LENGTH_SHORT).show();
-                            new Thread(()->{applyDisplaySoundProfile(gamePackage);applyGameHardwareProfile(gamePackage);applyGameRefreshProfile(gamePackage);},"PulseXtHardwareApply").start();
+                            new Thread(()->{applyDisplaySoundProfile(gamePackage);applyGameHardwareProfile(gamePackage);applyGameRefreshProfile(gamePackage);applyGameTouchProfile(gamePackage);},"PulseXtHardwareApply").start();
                         }
                         handler.postDelayed(this,1000);
                     }else if(seenGame){
@@ -203,6 +203,53 @@ public final class GameProfileMonitorService extends Service {
         return true;
     }
 
+    // Safe Goodix-only backend. Other panels and 1000 Hz require Rodin's privileged AIDL/input daemon.
+    private boolean applyGameTouchProfile(String pkg){
+        android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
+        int profile=prefs.getInt(pkg+".touch_rate",0);
+        if(profile==0)return restoreGameTouchProfile(pkg);
+        if(profile==1000){
+            Log.w(TAG,"Touch 1000 Hz requires a privileged input resampler; unsupported by this APK backend");
+            return false;
+        }
+        if(profile!=240&&profile!=480)return false;
+        final String node="/sys/devices/platform/goodix_ts.0/switch_report_rate";
+        RootHardwareController.Result probe=RootHardwareController.run("[ -r "+node+" ] && [ -w "+node+" ] && cat "+node,4000);
+        if(!probe.ok()){
+            Log.w(TAG,"Touch profile unsupported: Goodix report-rate node unavailable: "+probe.output);
+            return false;
+        }
+        String original=probe.output.trim().split("\\s+")[0];
+        if(!original.equals("0")&&!original.equals("1")&&!original.toLowerCase().contains("hz")){
+            Log.w(TAG,"Unknown Goodix report-rate value; refusing to modify: "+original);
+            return false;
+        }
+        if(!prefs.getBoolean(pkg+".touch_backup_valid",false)){
+            prefs.edit().putString(pkg+".restore_touch_value",original).putBoolean(pkg+".touch_backup_valid",true).commit();
+        }
+        String target=profile==240?"0":"1";
+        RootHardwareController.Result write=RootHardwareController.run("printf '%s' '"+target+"' > "+node+" && cat "+node,5000);
+        boolean ok=write.ok()&&write.output.trim().startsWith(target);
+        Log.i(TAG,"Touch profile requested="+profile+" verified="+ok+" readback="+write.output);
+        return ok;
+    }
+
+    private boolean restoreGameTouchProfile(String pkg){
+        android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
+        if(!prefs.getBoolean(pkg+".touch_backup_valid",false))return true;
+        String original=prefs.getString(pkg+".restore_touch_value","");
+        if(!original.equals("0")&&!original.equals("1")){
+            Log.e(TAG,"Invalid saved touch report-rate value; refusing restore");
+            return false;
+        }
+        final String node="/sys/devices/platform/goodix_ts.0/switch_report_rate";
+        RootHardwareController.Result result=RootHardwareController.run("[ -w "+node+" ] && printf '%s' '"+original+"' > "+node+" && cat "+node,5000);
+        boolean ok=result.ok()&&result.output.trim().startsWith(original);
+        if(ok)prefs.edit().putBoolean(pkg+".touch_backup_valid",false).remove(pkg+".restore_touch_value").apply();
+        else Log.e(TAG,"Touch restore failed: "+result.output);
+        return ok;
+    }
+
     /** Apply only controls enabled by the saved game profile, using live kernel bounds. */
     private void applyGameHardwareProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
@@ -339,7 +386,8 @@ public final class GameProfileMonitorService extends Service {
             final boolean batterySaverRestoredFinal = (batterySaver == 0 || batterySaver == 1) && batterySaverRestored;
             final boolean hardwareRestored=restoreHardwareProfile(gamePackage);
             final boolean refreshRestored=restoreGameRefreshProfile(gamePackage);
-            final boolean success = displayRestored && volumeRestored && batterySaverRestoredFinal && hardwareRestored && refreshRestored;
+            final boolean touchRestored=restoreGameTouchProfile(gamePackage);
+            final boolean success = displayRestored && volumeRestored && batterySaverRestoredFinal && hardwareRestored && refreshRestored && touchRestored;
             if(success){
                 prefs.edit().putBoolean(gamePackage+".restore_pending",false)
                     .putBoolean("monitor_seen_game",false).remove(ACTIVE_PACKAGE).apply();
@@ -349,7 +397,7 @@ public final class GameProfileMonitorService extends Service {
                     Log.i(TAG,"Original game settings restored for "+gamePackage);
                     stopSelf();
                 }else{
-                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestoredFinal+" hardwareOk="+hardwareRestored+" refreshOk="+refreshRestored);
+                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestoredFinal+" hardwareOk="+hardwareRestored+" refreshOk="+refreshRestored+" touchOk="+touchRestored);
                     handler.postDelayed(()->restoreAndFinish(),2500);
                 }
             });
