@@ -1,0 +1,32 @@
+name: Build PulseXt KernelSU module
+on:
+  push:
+    paths:
+      - 'kernel-module/**'
+      - '.github/workflows/kernelsu-module.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate module files
+        run: |
+          test -f kernel-module/module.prop
+          test -f kernel-module/service.sh
+          test -f kernel-module/pulsext-touchctl
+          sh -n kernel-module/customize.sh
+          sh -n kernel-module/post-fs-data.sh
+          sh -n kernel-module/service.sh
+          sh -n kernel-module/pulsext-touchctl
+          sh -n kernel-module/uninstall.sh
+      - name: Package KernelSU module
+        run: |
+          cd kernel-module
+          zip -r ../PulseXt-KernelSU-module.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PulseXt-KernelSU-module
+          path: PulseXt-KernelSU-module.zip
