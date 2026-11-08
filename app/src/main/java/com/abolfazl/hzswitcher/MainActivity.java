@@ -114,12 +114,63 @@ public class MainActivity extends Activity {
         updateBottomNav();
     }
 
+    // Consistent custom line icons: all symbols share the same 24dp grid and stroke.
+    private class AppIcon extends View {
+        private final String name; private final android.graphics.Paint paint=new android.graphics.Paint(3);
+        private final android.graphics.Path path=new android.graphics.Path();
+        private final int color;
+        AppIcon(String n,int c){super(MainActivity.this);name=n;color=c;setLayerType(View.LAYER_TYPE_SOFTWARE,null);}
+        @Override protected void onDraw(android.graphics.Canvas canvas){
+            super.onDraw(canvas);
+            float sx=getWidth()/24f, sy=getHeight()/24f;
+            canvas.save(); canvas.scale(sx,sy);
+            paint.setColor(color); paint.setStyle(android.graphics.Paint.Style.STROKE);
+            paint.setStrokeWidth(1.8f); paint.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+            paint.setStrokeJoin(android.graphics.Paint.Join.ROUND);
+            float c=12f;
+            switch(name){
+                case "brightness":
+                    canvas.drawCircle(c,c,4.1f,paint);
+                    for(int i=0;i<8;i++){double a=Math.PI*i/4;float x1=(float)(c+7*Math.cos(a)),y1=(float)(c+7*Math.sin(a));float x2=(float)(c+10*Math.cos(a)),y2=(float)(c+10*Math.sin(a));canvas.drawLine(x1,y1,x2,y2,paint);} break;
+                case "refresh":
+                    canvas.drawRoundRect(3,3,21,21,2,2,paint); canvas.drawRoundRect(7,7,17,17,1,1,paint);
+                    canvas.drawLine(12,1,12,4,paint); break;
+                case "tools":
+                    canvas.drawCircle(c,c,3.2f,paint); canvas.drawCircle(c,c,8,paint);
+                    for(int i=0;i<8;i++){double a=Math.PI*i/4;canvas.drawLine((float)(c+8*Math.cos(a)),(float)(c+8*Math.sin(a)),(float)(c+10*Math.cos(a)),(float)(c+10*Math.sin(a)),paint);} break;
+                case "info":
+                    canvas.drawCircle(c,c,9.5f,paint); canvas.drawCircle(c,7.5f,0.8f,paint); canvas.drawLine(c,11,c,17,paint); break;
+                case "home":
+                    path.reset();path.moveTo(3,10);path.lineTo(12,2.5f);path.lineTo(21,10);path.lineTo(21,21);path.lineTo(3,21);path.close();canvas.drawPath(path,paint);break;
+                case "settings":
+                    canvas.drawLine(4,6,20,6,paint);canvas.drawCircle(9,6,2,paint);
+                    canvas.drawLine(4,12,20,12,paint);canvas.drawCircle(15,12,2,paint);
+                    canvas.drawLine(4,18,20,18,paint);canvas.drawCircle(11,18,2,paint);break;
+                case "user":
+                    canvas.drawCircle(12,8,3.2f,paint);path.reset();path.moveTo(4,20);path.cubicTo(4,15,8,13,12,13);path.cubicTo(16,13,20,15,20,20);canvas.drawPath(path,paint);break;
+                case "channel":
+                    path.reset();path.moveTo(3,5);path.lineTo(21,5);path.lineTo(19,19);path.lineTo(5,19);path.close();canvas.drawPath(path,paint);canvas.drawLine(7,9,17,9,paint);canvas.drawLine(7,13,14,13,paint);break;
+                case "external":
+                    canvas.drawRoundRect(3,7,17,21,2,2,paint);canvas.drawLine(11,3,21,3,paint);canvas.drawLine(21,3,21,13,paint);canvas.drawLine(21,3,10,14,paint);break;
+                case "back":
+                    canvas.drawLine(19,12,5,12,paint);canvas.drawLine(5,12,11,6,paint);canvas.drawLine(5,12,11,18,paint);break;
+                case "chevron":
+                    canvas.drawLine(9,4,17,12,paint);canvas.drawLine(17,12,9,20,paint);break;
+            }
+            canvas.restore();
+        }
+    }
+    private View icon(String name,int color,int size){
+        AppIcon v=new AppIcon(name,color); return v;
+    }
+
     private LinearLayout pageContent(){return column();}
     private void addFeatureRow(LinearLayout list,String icon,String title,String subtitle,Runnable action){
         LinearLayout item=row(); pad(item,16,15,16,15); item.setBackground(shape(PANEL,22,0xFF292B30));
         LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,dp(94)); ip.bottomMargin=dp(11); list.addView(item,ip);
-        TextView glyph=text(icon,24,ACCENT,true); glyph.setGravity(Gravity.CENTER);
-        glyph.setBackground(shape(0xFF30263F,18,0)); item.addView(glyph,new LinearLayout.LayoutParams(dp(54),dp(54)));
+        FrameLayout glyphBox=new FrameLayout(this); glyphBox.setBackground(shape(0xFF30263F,18,0));
+        AppIcon glyph=new AppIcon(icon,ACCENT); FrameLayout.LayoutParams glyphLp=new FrameLayout.LayoutParams(dp(27),dp(27),Gravity.CENTER); glyphBox.addView(glyph,glyphLp);
+        item.addView(glyphBox,new LinearLayout.LayoutParams(dp(54),dp(54)));
         LinearLayout labels=column(); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1); lp.leftMargin=dp(15); item.addView(labels,lp);
         labels.addView(text(title,18,TEXT,true)); TextView sub=text(subtitle,12,MUTED,false);
         LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2); sp.topMargin=dp(5); labels.addView(sub,sp);
@@ -129,11 +180,11 @@ public class MainActivity extends Activity {
 
     private void updateBottomNav(){
         if(bottomBar==null)return; bottomBar.removeAllViews();
-        String[] names={"Home","Settings","About"}; String[] icons={"⌂","⬡","ⓘ"};
+        String[] names={"Home","Settings","About"}; String[] icons={"home","settings","info"};
         for(int i=0;i<names.length;i++){ final String n=names[i]; boolean active=currentPage.equals(n);
             LinearLayout tab=column(); tab.setGravity(Gravity.CENTER); tab.setBackground(shape(active?0xFF302443:0x00000000,18,0));
-            TextView glyph=text(icons[i],23,active?ACCENT:0xFF777A80,true); glyph.setGravity(Gravity.CENTER);
-            tab.addView(glyph);
+            AppIcon glyph=new AppIcon(icons[i],active?ACCENT:0xFF777A80);
+            LinearLayout.LayoutParams glyphLp=new LinearLayout.LayoutParams(dp(23),dp(23)); glyphLp.bottomMargin=dp(4); tab.addView(glyph,glyphLp);
             TextView label=text(n,11,active?TEXT:0xFF777A80,active); label.setGravity(Gravity.CENTER); tab.addView(label);
             tab.setOnClickListener(v->{v.animate().alpha(.55f).setDuration(70).withEndAction(()->{if(n.equals("Home"))showHome();else if(n.equals("Settings"))showSettings();else showAbout();}).start();});
             bottomBar.addView(tab,new LinearLayout.LayoutParams(0,-1,1));
@@ -155,10 +206,10 @@ public class MainActivity extends Activity {
         TextView section=text("CONTROL CENTER",10,MUTED,true); section.setLetterSpacing(.14f);
         LinearLayout.LayoutParams secp=new LinearLayout.LayoutParams(-1,-2); secp.bottomMargin=dp(10); c.addView(section,secp);
         LinearLayout list=column(); c.addView(list);
-        addFeatureRow(list,"☼","Display Brightness","Smoothly adjust screen brightness",()->showBrightness());
-        addFeatureRow(list,"▣","Refresh Rate","30  /  60  /  90  /  120 Hz",()->showRefreshRate());
-        addFeatureRow(list,"⚙","System Tools","Device status and utilities",()->showSettings());
-        addFeatureRow(list,"ⓘ","About PulseXt","Version and developer links",()->showAbout());
+        addFeatureRow(list,"brightness","Display Brightness","Smoothly adjust screen brightness",()->showBrightness());
+        addFeatureRow(list,"refresh","Refresh Rate","30  /  60  /  90  /  120 Hz",()->showRefreshRate());
+        addFeatureRow(list,"tools","System Tools","Device status and utilities",()->showSettings());
+        addFeatureRow(list,"info","About PulseXt","Version and developer links",()->showAbout());
         showPage("Home",c);
         for(int i=0;i<list.getChildCount();i++){View child=list.getChildAt(i);child.setAlpha(0f);child.setTranslationY(dp(10));child.animate().alpha(1f).translationY(0).setStartDelay(45L*i).setDuration(220).start();}
         search.addTextChangedListener(new android.text.TextWatcher(){
@@ -247,7 +298,7 @@ public class MainActivity extends Activity {
         LinearLayout labels=column(); card.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
         TextView caption=text(title,10,MUTED,true); caption.setLetterSpacing(.1f); labels.addView(caption);
         TextView value=text(handle,16,ACCENT,true); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2); vp.topMargin=dp(5); labels.addView(value,vp);
-        TextView arrow=text("↗",22,ACCENT,true); card.addView(arrow);
+        AppIcon arrow=new AppIcon("external",ACCENT); card.addView(arrow,new LinearLayout.LayoutParams(dp(20),dp(20)));
         card.setOnClickListener(v->{try{android.content.Intent intent=new android.content.Intent(android.content.Intent.ACTION_VIEW,android.net.Uri.parse(url));startActivity(intent);}catch(Exception e){Toast.makeText(this,"Telegram link could not be opened.",Toast.LENGTH_SHORT).show();}});
     }
 
