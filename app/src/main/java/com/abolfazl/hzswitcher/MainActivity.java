@@ -59,84 +59,139 @@ public class MainActivity extends Activity {
         p.topMargin=dp(top); parent.addView(t,p); return t;
     }
 
+    private LinearLayout appRoot, pageHost, bottomBar;
+    private String currentPage="Home";
+
     private void buildUi() {
-        ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true); scroll.setBackgroundColor(BG);
-        LinearLayout page=column(); pad(page,22,24,22,28); scroll.addView(page);
-        LinearLayout header=row();
-        LinearLayout brand=column();
-        brand.addView(text("HZ SWITCHER",12,ACCENT,true));
-        TextView subtitle=text("Refresh rate control",14,MUTED,false);
-        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-2);sp.topMargin=dp(4);brand.addView(subtitle,sp);
-        header.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
-        TextView chip=text("ROOT EDITION",10,ACCENT,true);pad(chip,12,8,12,8);chip.setBackground(shape(0xFF17352F,30,0));header.addView(chip);
-        page.addView(header);
+        appRoot=column(); appRoot.setBackgroundColor(0xFF000000);
+        LinearLayout top=row(); pad(top,24,18,24,12);
+        TextView appName=text("AutoHz",14,TEXT,true);
+        top.addView(appName,new LinearLayout.LayoutParams(0,-2,1));
+        TextView topIcon=text("☼   ⚙",22,0xFFBBBBBB,false); top.addView(topIcon);
+        appRoot.addView(top,new LinearLayout.LayoutParams(-1,-2));
+        pageHost=column();
+        LinearLayout.LayoutParams hostParams=new LinearLayout.LayoutParams(-1,0,1);
+        appRoot.addView(pageHost,hostParams);
+        bottomBar=row(); bottomBar.setBackgroundColor(0xFF101010); pad(bottomBar,12,8,12,8);
+        appRoot.addView(bottomBar,new LinearLayout.LayoutParams(-1,dp(68)));
+        setContentView(appRoot); showHome();
+    }
 
-        LinearLayout hero=column();pad(hero,20,20,20,20);hero.setBackground(shape(PANEL,26,0xFF263647));
-        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=dp(28);page.addView(hero,hp);
-        LinearLayout heroTop=row();heroTop.addView(text("LIVE DISPLAY",11,MUTED,true),new LinearLayout.LayoutParams(0,-2,1));
-        TextView live=text("●  MONITORING",10,ACCENT,true);heroTop.addView(live);hero.addView(heroTop);
-        rateValue=text("--",58,TEXT,true);LinearLayout.LayoutParams rv=new LinearLayout.LayoutParams(-2,-2);rv.topMargin=dp(12);hero.addView(rateValue,rv);
-        rateCaption=text("Hz  •  Current reported refresh rate",13,MUTED,false);hero.addView(rateCaption);
-        View line=new View(this);line.setBackgroundColor(0xFF2B394A);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(1));lp.topMargin=dp(20);lp.bottomMargin=dp(16);hero.addView(line,lp);
-        deviceLabel=text("POCO X7 Pro  ·  HyperOS 3 profile",12,0xFFC5D0DC,false);hero.addView(deviceLabel);
-
-        addLabel(page,"Display brightness",18,TEXT,true,28);
-        addLabel(page,"Adjust your device screen brightness.",13,MUTED,false,6);
-        LinearLayout brightnessCard=column();pad(brightnessCard,18,16,18,16);brightnessCard.setBackground(shape(PANEL,20,0));
-        LinearLayout.LayoutParams bcp=new LinearLayout.LayoutParams(-1,-2);bcp.topMargin=dp(14);page.addView(brightnessCard,bcp);
-        LinearLayout brightnessHeader=row();
-        brightnessHeader.addView(text("Brightness level",14,TEXT,true),new LinearLayout.LayoutParams(0,-2,1));
-        brightnessValue=text("--%",14,ACCENT,true);brightnessHeader.addView(brightnessValue);
-        brightnessCard.addView(brightnessHeader);
-        brightnessSlider=new SeekBar(this);brightnessSlider.setMax(255);
-        if(android.os.Build.VERSION.SDK_INT>=21)brightnessSlider.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));
-        if(android.os.Build.VERSION.SDK_INT>=21)brightnessSlider.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));
-        LinearLayout.LayoutParams bsp=new LinearLayout.LayoutParams(-1,-2);bsp.topMargin=dp(10);brightnessCard.addView(brightnessSlider,bsp);
-        brightnessSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-            @Override public void onProgressChanged(SeekBar seekBar,int progress,boolean fromUser){
-                if(fromUser)brightnessValue.setText(Math.round(progress*100f/255f)+"%");
-            }
-            @Override public void onStartTrackingTouch(SeekBar seekBar){}
-            @Override public void onStopTrackingTouch(SeekBar seekBar){applyBrightness(seekBar.getProgress());}
-        });
-
-        addLabel(page,"Refresh rate",18,TEXT,true,28);
-        addLabel(page,"Choose a mode supported by your display.",13,MUTED,false,6);
-        LinearLayout choices=column();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=dp(14);page.addView(choices,cp);
-        for(int i=0;i<rateOptions.length;i+=3){
-            LinearLayout choiceRow=row();LinearLayout.LayoutParams rowp=new LinearLayout.LayoutParams(-1,dp(58));if(i>0)rowp.topMargin=dp(8);choices.addView(choiceRow,rowp);
-            for(int j=i;j<Math.min(i+3,rateOptions.length);j++){
-                final int hz=rateOptions[j];Button b=new Button(this);rateButtons.add(b);
-                b.setText(hz+" Hz");b.setTextSize(14);b.setAllCaps(false);b.setTextColor(TEXT);
-                b.setPadding(0,0,0,0);b.setMinHeight(0);b.setMinimumHeight(0);b.setStateListAnimator(null);
-                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);if(j>i)bp.leftMargin=dp(8);choiceRow.addView(b,bp);
-                b.setOnClickListener(v->applyRate(hz));
-            }
-            while(choiceRow.getChildCount()<3){View spacer=new View(this);choiceRow.addView(spacer,new LinearLayout.LayoutParams(0,1,1));}
+    private void showPage(String title, View content){
+        currentPage=title; pageHost.removeAllViews();
+        LinearLayout page=column(); pad(page,22,18,22,24);
+        LinearLayout heading=row();
+        if(!title.equals("Home")&&!title.equals("Settings")&&!title.equals("About")){
+            TextView back=text("‹",34,TEXT,false); back.setGravity(Gravity.CENTER);
+            heading.addView(back,new LinearLayout.LayoutParams(dp(42),dp(48)));
+            back.setOnClickListener(v->showHome());
         }
+        TextView name=text(title,34,TEXT,false);
+        heading.addView(name,new LinearLayout.LayoutParams(0,-2,1)); page.addView(heading);
+        ScrollView scroll=new ScrollView(this); scroll.setFillViewport(false);
+        scroll.addView(content); page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        pageHost.addView(page,new LinearLayout.LayoutParams(-1,-1));
+        updateBottomNav();
+    }
 
-        LinearLayout rootCard=column();pad(rootCard,16,16,16,16);rootCard.setBackground(shape(PANEL,20,0));
-        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.topMargin=dp(24);page.addView(rootCard,rp);
-        LinearLayout rootRow=row();rootRow.addView(text("Root access",15,TEXT,true),new LinearLayout.LayoutParams(0,-2,1));
-        rootLabel=text("Checking…",12,MUTED,true);rootRow.addView(rootLabel);rootCard.addView(rootRow);
-        rootDetail=text("Waiting for device check.",12,MUTED,false);LinearLayout.LayoutParams rlp=new LinearLayout.LayoutParams(-1,-2);rlp.topMargin=dp(10);rootCard.addView(rootDetail,rlp);
+    private LinearLayout pageContent(){return column();}
+    private void addFeatureRow(LinearLayout list,String icon,String title,String subtitle,Runnable action){
+        LinearLayout item=row(); pad(item,18,18,18,18); item.setBackground(shape(0xFF252525,24,0));
+        LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,dp(92)); ip.bottomMargin=dp(10); list.addView(item,ip);
+        TextView glyph=text(icon,26,0xFFFFFFFF,true); glyph.setGravity(Gravity.CENTER);
+        glyph.setBackground(shape(0xFF343434,50,0)); item.addView(glyph,new LinearLayout.LayoutParams(dp(52),dp(52)));
+        LinearLayout labels=column(); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1); lp.leftMargin=dp(16); item.addView(labels,lp);
+        labels.addView(text(title,18,TEXT,false)); TextView sub=text(subtitle,13,MUTED,false);
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2); sp.topMargin=dp(4); labels.addView(sub,sp);
+        item.addView(text("›",32,0xFF888888,false)); item.setOnClickListener(v->action.run());
+    }
 
-        restoreButton=new Button(this);restoreButton.setText("Restore previous settings");restoreButton.setAllCaps(false);
-        restoreButton.setTextColor(TEXT);restoreButton.setTextSize(14);restoreButton.setBackground(shape(PANEL2,16,0));
-        LinearLayout.LayoutParams rbp=new LinearLayout.LayoutParams(-1,dp(54));rbp.topMargin=dp(14);page.addView(restoreButton,rbp);
-        restoreButton.setOnClickListener(v->restoreSettings());
+    private void updateBottomNav(){
+        if(bottomBar==null)return; bottomBar.removeAllViews();
+        String[] names={"Home","Settings","About"}; String[] icons={"⌂","⬡","ⓘ"};
+        for(int i=0;i<names.length;i++){ final String n=names[i];
+            LinearLayout tab=column(); tab.setGravity(Gravity.CENTER);
+            tab.addView(text(icons[i],25,currentPage.equals(n)?TEXT:0xFF777777,true));
+            TextView label=text(n,12,currentPage.equals(n)?TEXT:0xFF777777,false); tab.addView(label);
+            tab.setOnClickListener(v->{if(n.equals("Home"))showHome();else if(n.equals("Settings"))showSettings();else showAbout();});
+            bottomBar.addView(tab,new LinearLayout.LayoutParams(0,-1,1));
+        }
+    }
 
-        addLabel(page,"Activity log",16,TEXT,true,26);
-        TextView log=text("• Ready for root and display checks.",12,MUTED,false);pad(log,14,14,14,14);log.setBackground(shape(PANEL,16,0));
-        LinearLayout.LayoutParams logp=new LinearLayout.LayoutParams(-1,-2);logp.topMargin=dp(10);page.addView(log,logp);
-        resultLabel=log;
-        addLabel(page,"Only the physical display refresh rate is controlled. App FPS may be lower.",11,MUTED,false,18);
-        setContentView(scroll);
-        renderChoices();
+    private void showHome(){
+        LinearLayout c=pageContent();
+        EditText search=new EditText(this); search.setSingleLine(true); search.setTextSize(16); search.setHint("⌕  Search");
+        search.setHintTextColor(0xFF888888); search.setTextColor(TEXT); pad(search,18,4,18,4); search.setBackground(shape(0xFF252525,40,0));
+        LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,dp(56)); ep.bottomMargin=dp(14); c.addView(search,ep);
+        TextView tip=text("Tip: Tune your display settings from separate sections.",14,0xFFAAAAAA,false); pad(tip,18,18,18,18); tip.setBackground(shape(0xFF252525,22,0));
+        LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2); tp.bottomMargin=dp(18); c.addView(tip,tp);
+        LinearLayout list=column(); c.addView(list);
+        addFeatureRow(list,"☼","Display Brightness","Adjust screen brightness",()->showBrightness());
+        addFeatureRow(list,"▣","Refresh Rate","Choose 30–120 Hz display modes",()->showRefreshRate());
+        addFeatureRow(list,"⚙","System Tools","Device status and system utilities",()->showSettings());
+        addFeatureRow(list,"ⓘ","About AutoHz","Version and app information",()->showAbout());
+        showPage("Home",c);
+    }
+
+    private void showBrightness(){
+        LinearLayout c=pageContent();
+        addLabel(c,"Display brightness",18,TEXT,true,8);
+        addLabel(c,"Adjust the brightness of your entire screen.",14,MUTED,false,8);
+        LinearLayout card=column(); pad(card,20,20,20,20); card.setBackground(shape(0xFF252525,24,0));
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2); cp.topMargin=dp(20); c.addView(card,cp);
+        LinearLayout hdr=row(); hdr.addView(text("Brightness level",16,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
+        brightnessValue=text("--%",16,TEXT,true); hdr.addView(brightnessValue); card.addView(hdr);
+        brightnessSlider=new SeekBar(this); brightnessSlider.setMax(255);
+        if(android.os.Build.VERSION.SDK_INT>=21){brightnessSlider.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFDDDDDD));brightnessSlider.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFDDDDDD));}
+        LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,-2); bp.topMargin=dp(18); card.addView(brightnessSlider,bp);
+        brightnessSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar seekBar,int progress,boolean fromUser){if(fromUser)brightnessValue.setText(Math.round(progress*100f/255f)+"%");}
+            public void onStartTrackingTouch(SeekBar seekBar){}
+            public void onStopTrackingTouch(SeekBar seekBar){applyBrightness(seekBar.getProgress());}
+        });
+        addStatusLog(c); showPage("Display Brightness",c); loadBrightness();
+    }
+
+    private void showRefreshRate(){
+        LinearLayout c=pageContent();
+        addLabel(c,"Refresh rate",18,TEXT,true,8); addLabel(c,"Select a refresh rate supported by your display.",14,MUTED,false,8);
+        LinearLayout choices=column(); LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2); cp.topMargin=dp(18); c.addView(choices,cp);
+        rateButtons.clear();
+        for(int i=0;i<rateOptions.length;i+=3){
+            LinearLayout line=row(); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(58)); if(i>0)rp.topMargin=dp(8); choices.addView(line,rp);
+            for(int j=i;j<Math.min(i+3,rateOptions.length);j++){final int hz=rateOptions[j]; Button b=new Button(this); rateButtons.add(b); b.setText(hz+" Hz"); b.setTextSize(14); b.setAllCaps(false); b.setTextColor(TEXT); b.setPadding(0,0,0,0); b.setMinHeight(0); b.setMinimumHeight(0); b.setStateListAnimator(null);
+                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1); if(j>i)bp.leftMargin=dp(8); line.addView(b,bp); b.setOnClickListener(v->applyRate(hz));}
+            while(line.getChildCount()<3)line.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
+        }
+        addStatusLog(c); showPage("Refresh Rate",c); refreshDisplay();
+    }
+
+    private void addStatusLog(LinearLayout c){
+        LinearLayout card=column(); pad(card,16,16,16,16); card.setBackground(shape(0xFF252525,20,0));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2); p.topMargin=dp(22); c.addView(card,p);
+        card.addView(text("Activity",15,TEXT,true)); resultLabel=text("Ready",13,MUTED,false); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.topMargin=dp(8); card.addView(resultLabel,rp);
+    }
+
+    private void showSettings(){
+        LinearLayout c=pageContent();
+        LinearLayout rootCard=column(); pad(rootCard,18,18,18,18); rootCard.setBackground(shape(0xFF252525,22,0)); c.addView(rootCard);
+        LinearLayout rr=row(); rr.addView(text("Root access",16,TEXT,true),new LinearLayout.LayoutParams(0,-2,1)); rootLabel=text("Checking…",13,MUTED,true); rr.addView(rootLabel); rootCard.addView(rr);
+        rootDetail=text("Checking superuser permission.",13,MUTED,false); LinearLayout.LayoutParams dp0=new LinearLayout.LayoutParams(-1,-2); dp0.topMargin=dp(10); rootCard.addView(rootDetail,dp0);
+        restoreButton=new Button(this); restoreButton.setText("Restore previous settings"); restoreButton.setAllCaps(false); restoreButton.setTextColor(TEXT); restoreButton.setBackground(shape(0xFF303030,18,0));
+        LinearLayout.LayoutParams rb=new LinearLayout.LayoutParams(-1,dp(54)); rb.topMargin=dp(16); c.addView(restoreButton,rb); restoreButton.setOnClickListener(v->restoreSettings());
+        showPage("Settings",c); renderChoices();
+    }
+
+    private void showAbout(){
+        LinearLayout c=pageContent(); TextView logo=text("AutoHz",42,TEXT,false); logo.setGravity(Gravity.CENTER);
+        c.addView(logo,new LinearLayout.LayoutParams(-1,dp(110)));
+        TextView desc=text("Display control and system tools for HyperOS.",15,MUTED,false); desc.setGravity(Gravity.CENTER); c.addView(desc);
+        TextView version=text("Version 1.0  •  POCO X7 Pro profile",13,MUTED,false); version.setGravity(Gravity.CENTER); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2); vp.topMargin=dp(18); c.addView(version,vp);
+        showPage("About",c);
     }
 
     private void renderChoices(){
-        for(int i=0;i<rateOptions.length;i++){
+        for(int i=0;i<rateOptions.length&&i<rateButtons.size();i++){
             int hz=rateOptions[i];boolean ok=isSupported(hz);boolean active=selectedHz==hz;
             Button b=rateButtons.get(i);b.setEnabled(rootReady&&!busy&&ok);b.setAlpha(ok?1f:0.42f);
             b.setText(hz+" Hz"+(ok?"":" · N/A"));
@@ -154,7 +209,7 @@ public class MainActivity extends Activity {
     private Display.Mode modeFor(int hz){for(Display.Mode m:modes())if(Math.abs(m.getRefreshRate()-hz)<1.2f)return m;return null;}
     private void refreshDisplay(){
         Display d=((DisplayManager)getSystemService(DISPLAY_SERVICE)).getDisplay(Display.DEFAULT_DISPLAY);
-        if(d!=null){rateValue.setText(String.format(Locale.US,"%.0f",d.getRefreshRate()));}
+        if(d!=null&&rateValue!=null){rateValue.setText(String.format(Locale.US,"%.0f",d.getRefreshRate()));}
         renderChoices();
     }
     private void checkRoot(){
@@ -167,7 +222,7 @@ public class MainActivity extends Activity {
                 rootLabel.setTextColor(ok?ACCENT:0xFFFF9B9B);
                 rootDetail.setText(ok?"Root shell verified. Select a refresh rate to apply.":"Root access was not granted. Approve the superuser request in Magisk / KernelSU.");
                 resultLabel.setText(ok?"• Root shell verified. Ready to apply a display mode.":"• Root access not granted. Check your superuser manager.");
-                renderChoices();refreshDisplay();loadBrightness();
+                renderChoices();refreshDisplay();if(brightnessSlider!=null)loadBrightness();
             });
         });
     }
@@ -279,6 +334,6 @@ public class MainActivity extends Activity {
         });
     }
 
-    @Override protected void onResume(){super.onResume();if(rateValue!=null){refreshDisplay();if(rootReady)loadBrightness();}}
+    @Override protected void onResume(){super.onResume();refreshDisplay();if(rootReady&&brightnessSlider!=null)loadBrightness();}
     @Override protected void onDestroy(){super.onDestroy();executor.shutdownNow();}
 }
