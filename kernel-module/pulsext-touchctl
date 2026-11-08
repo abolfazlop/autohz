@@ -1,6 +1,6 @@
 #!/system/bin/sh
 MODDIR=${0%/*}
-CTL="$MODDIR/bin/rodin_essentialctl"
+CTL="$MODDIR/bin/rodin_ctl"
 cmd=${1:-status}
 rate=${2:-}
 DEVICE="$(getprop ro.product.device)"
@@ -11,7 +11,7 @@ if [ "$DEVICE" != "rodin" ]; then
   echo "supported_device=rodin"
   exit 3
 fi
-if [ ! -x "$CTL" ]; then echo "error=rodin_essentialctl_missing"; exit 4; fi
+if [ ! -x "$CTL" ]; then echo "error=rodin_ctl_missing"; exit 4; fi
 
 snapshot() {
   "$CTL" "GET snapshot" 2>&1
@@ -26,7 +26,7 @@ case "$cmd" in
     echo "backend=Rodin-Essential-v1.18.5"
     echo "device=$DEVICE"
     "$CTL" PING 2>&1
-    if pidof rodin_essentiald >/dev/null 2>&1; then echo "daemon=running"; else echo "daemon=stopped"; fi
+    if pidof rodin_daemon >/dev/null 2>&1; then echo "daemon=running"; else echo "daemon=stopped"; fi
     live="$(snapshot)"
     echo "snapshot=$live"
     echo "touch=$(field touch "$live")"
