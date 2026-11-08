@@ -1,38 +1,75 @@
 #!/system/bin/sh
-# PulseXt Touch Engine control interface. Probe is read-only by design.
-MODDIR=${0%/*}
-cmd=${1:-status}
-case "$cmd" in
-  probe|status)
-    echo "engine=PulseXtTouchEngine"
-    echo "backend=diagnostic-only"
-    echo "root=$(id -u)"
-    echo "soc=$(getprop ro.soc.model)"
-    echo "manufacturer=$(getprop ro.product.manufacturer)"
-    echo "device=$(getprop ro.product.device)"
-    found=0
-    for p in /sys/class/input/* /sys/devices/platform/*; do
-      [ -e "$p" ] || continue
-      n=$(basename "$p")
-      case "$n" in *touch*|*goodix*|*focal*|*fts*|*synaptics*|*novatek*)
-        echo "candidate=$p"; found=1;;
-      esac
-    done
-    [ "$found" = 1 ] || echo "candidate=none"
+# PulseXt Touch Engine: root control plane. Vendor adapters are opt-in and device-scoped.
+MODDIR=\${0%/*}
+STATE=/data/adb/pulsext-touch
+mkdir -p "$STATE"
+chmod 0700 "$STATE"
+cmd=\${1:-status}
+rate=\${2:-}
+device="$(getprop ro.product.device)"
+fingerprint="$(getprop ro.build.fingerprint)"
+soc="$(getprop ro.soc.model)"
+manufacturer="$(getprop ro.product.manufacturer)"
+adapter="$MODDIR/adapters/\${device}.sh"
+
+probe() {
+  echo "engine=PulseXtTouchEngine"
+  echo "engine_version=0.2.0"
+  echo "backend=vendor-adapter-dispatch"
+  echo "root=$(id -u)"
+  echo "manufacturer=$manufacturer"
+  echo "device=$device"
+  echo "soc=$soc"
+  echo "fingerprint=$fingerprint"
+  found=0
+  for d in /sys/class/input/input*; do
+    [ -d "$d" ] || continue
+    name="$(cat "$d/name" 2>/dev/null)"
+    case "$(echo "$name" | tr '[:upper:]' '[:lower:]')" in
+      *touch*|*goodix*|*focal*|*fts*|*synaptics*|*novatek*|*ilitek*)
+        echo "input_device=$(basename "$d"):$name"
+        found=1 ;;
+    esac
+  done
+  [ "$found" = 1 ] || echo "input_device=not_identified"
+  if [ -x "$adapter" ]; then
+    echo "adapter=present"
+    "$adapter" probe 2>/dev/null | sed 's/^/adapter_/'
+  else
+    echo "adapter=missing"
     echo "apply_supported=false"
-    echo "reason=No verified vendor adapter or native input-resampler is bundled for this device"
-    ;;
+    echo "reason=no_verified_adapter_for_device"
+  fi
+}
+
+case "$cmd" in
+  probe|status) probe ;;
   apply)
-    rate=${2:-}
     case "$rate" in 0|240|480|1000) ;; *) echo "error=invalid_rate"; exit 2;; esac
-    echo "error=unsupported_backend"
-    echo "requested=$rate"
-    echo "message=Refusing to fake touch rate; a verified device-specific backend is required"
-    exit 3
+    if [ ! -x "$adapter" ]; then
+      echo "error=unsupported_backend"
+      echo "requested=$rate"
+      echo "device=$device"
+      echo "message=No verified vendor adapter is installed for this exact device"
+      exit 3
+    fi
+    result="$("$adapter" apply "$rate" 2>&1)"
+    code=$?
+    echo "$result"
+    [ "$code" -eq 0 ] || exit "$code"
+    echo "$result" | grep -q '^verified=true$' || { echo "error=adapter_did_not_verify_readback"; exit 4; }
+    printf '%s\n' "$rate" > "$STATE/active_rate"
+    printf '%s\n' "$device" > "$STATE/active_device"
+    chmod 0600 "$STATE/active_rate" "$STATE/active_device"
     ;;
   restore)
-    echo "error=no_active_touch_backend"
-    exit 3
+    if [ ! -x "$adapter" ]; then echo "error=no_verified_adapter"; exit 3; fi
+    result="$("$adapter" restore 2>&1)"
+    code=$?
+    echo "$result"
+    [ "$code" -eq 0 ] || exit "$code"
+    echo "$result" | grep -q '^verified=true$' || { echo "error=restore_not_verified"; exit 4; }
+    rm -f "$STATE/active_rate" "$STATE/active_device"
     ;;
-  *) echo "usage: pulsext-touchctl {probe|status|apply 0|240|480|1000|restore}"; exit 2;;
+  *) echo "usage: pulsext-touchctl {probe|status|apply 0|240|480|1000|restore}"; exit 2 ;;
 esac
