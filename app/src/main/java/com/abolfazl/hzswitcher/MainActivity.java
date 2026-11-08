@@ -334,7 +334,9 @@ public class MainActivity extends Activity {
         addGameQuickToggles(c,pkg);
 
         addLabel(c,"DISPLAY & SOUND",10,MUTED,true,22);
+        addProfileEnableSwitch(c,pkg,"Brightness","brightness_enabled");
         addProfileSlider(c,pkg,"Brightness","brightness",0,100,gamePrefs.getInt(profileKey(pkg,"brightness"),70),"%");
+        addProfileEnableSwitch(c,pkg,"Sound","volume_enabled");
         addProfileSlider(c,pkg,"Media volume","volume",0,100,gamePrefs.getInt(profileKey(pkg,"volume"),70),"%");
 
         addLabel(c,"REFRESH RATE",10,MUTED,true,20);
@@ -707,6 +709,14 @@ public class MainActivity extends Activity {
             public void onStartTrackingTouch(SeekBar bar){}
             public void onStopTrackingTouch(SeekBar bar){gamePrefs.edit().putInt(profileKey(pkg,valueKey),safeMin+bar.getProgress()*50).apply();}
         });
+    }
+
+    private void addProfileEnableSwitch(LinearLayout parent,String pkg,String title,String key){
+        LinearLayout line=row();line.setGravity(Gravity.CENTER_VERTICAL);pad(line,12,7,12,7);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(48));lp.topMargin=dp(6);parent.addView(line,lp);
+        TextView label=text(title,13,TEXT,true);line.addView(label,new LinearLayout.LayoutParams(0,-2,1));
+        Switch toggle=new Switch(this);toggle.setChecked(gamePrefs.getBoolean(profileKey(pkg,key),true));line.addView(toggle);
+        toggle.setOnCheckedChangeListener((button,checked)->gamePrefs.edit().putBoolean(profileKey(pkg,key),checked).apply());
     }
 
     private void addProfileSlider(LinearLayout parent,String pkg,String title,String key,int min,int max,int value,String suffix){
