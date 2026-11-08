@@ -441,13 +441,15 @@ public class MainActivity extends Activity {
     private void saveGameRestoreState(String pkg){
         RootHardwareController.Result r=RootHardwareController.run(
             "echo BRIGHTNESS:$(settings get system screen_brightness); "+
-            "echo BRIGHTNESS_MODE:$(settings get system screen_brightness_mode)",5000);
+            "echo BRIGHTNESS_MODE:$(settings get system screen_brightness_mode); "+
+            "echo BATTERY_SAVER:$(settings get global low_power)",5000);
         int brightness=readTaggedInt(r.output,"BRIGHTNESS:",-1);
         int mode=readTaggedInt(r.output,"BRIGHTNESS_MODE:",-1);
+        int batterySaver=readTaggedInt(r.output,"BATTERY_SAVER:",-1);
         android.media.AudioManager audio=(android.media.AudioManager)getSystemService(android.content.Context.AUDIO_SERVICE);
         int volume=audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
         int volumeMax=audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
-        if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1||volumeMax<1){
+        if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1||batterySaver<0||batterySaver>1||volumeMax<1){
             android.util.Log.e("PulseXt","Could not capture original game state: "+r.output);
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
             return;
@@ -455,6 +457,7 @@ public class MainActivity extends Activity {
         gamePrefs.edit()
             .putInt(profileKey(pkg,"restore_brightness"),brightness)
             .putInt(profileKey(pkg,"restore_brightness_mode"),mode)
+            .putInt(profileKey(pkg,"restore_battery_saver"),batterySaver)
             .putInt(profileKey(pkg,"restore_volume"),volume)
             .putInt(profileKey(pkg,"restore_volume_max"),volumeMax)
             .putBoolean(profileKey(pkg,"restore_pending"),true)
