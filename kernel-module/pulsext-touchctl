@@ -60,7 +60,7 @@ case "$cmd" in
     ack="$(field touch_ack "$live")"
     echo "touch=$touch"
     echo "touch_ack=$ack"
-    [ "$touch" = 0 ] || { echo "error=touch_restore_state_mismatch"; exit 6; }
+    [ "$touch" = -1 ] || { echo "error=touch_restore_state_mismatch"; exit 6; }
     [ "$ack" = -1 ] || { echo "error=touch_restore_not_acknowledged"; exit 8; }
     ;;
   *) echo "usage: pulsext-touchctl {probe|status|apply 240|480|1000|restore}"; exit 2 ;;
