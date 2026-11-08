@@ -142,7 +142,8 @@ public class MainActivity extends Activity {
                 rootReady=ok;
                 rootLabel.setText(ok?"GRANTED":"NOT GRANTED");
                 rootLabel.setTextColor(ok?ACCENT:0xFFFF9B9B);
-                rootDetail.setText(ok?"Root shell verified. Select a refresh rate to apply.":"Root access was not granted. Approve the superuser request in Magisk / KernelSU.");\n                resultLabel.setText(ok?"• Root shell verified. Ready to apply a display mode.":"• Root access not granted. Check your superuser manager.");
+                rootDetail.setText(ok?"Root shell verified. Select a refresh rate to apply.":"Root access was not granted. Approve the superuser request in Magisk / KernelSU.");
+                resultLabel.setText(ok?"• Root shell verified. Ready to apply a display mode.":"• Root access not granted. Check your superuser manager.");
                 renderChoices();refreshDisplay();
             });
         });
