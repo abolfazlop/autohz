@@ -319,7 +319,7 @@ public class MainActivity extends Activity {
                 // preferred display mode. Omitting DISPLAY_ID avoids a display-local override.
                 String cmd="settings put secure user_refresh_rate 1"+
                     " && settings put secure miui_refresh_rate "+hz+
-                    " && cmd display set-user-preferred-display-mode "+mode.getPhysicalWidth()+" "+mode.getPhysicalHeight()+" "+hz+" 0;
+                    " && cmd display set-user-preferred-display-mode "+mode.getPhysicalWidth()+" "+mode.getPhysicalHeight()+" "+hz+" 0";
                 CommandResult applied=execRoot(cmd);
                 if(applied.exit!=0||applied.timeout)throw new RuntimeException("Apply command failed: "+applied.output);
                 Thread.sleep(1400);
