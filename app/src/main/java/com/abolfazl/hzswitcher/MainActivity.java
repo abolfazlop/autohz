@@ -208,8 +208,6 @@ public class MainActivity extends Activity {
         LinearLayout list=column(); c.addView(list);
         addFeatureRow(list,"brightness","Display Brightness","Smoothly adjust screen brightness",()->showBrightness());
         addFeatureRow(list,"refresh","Refresh Rate","30  /  60  /  90  /  120 Hz",()->showRefreshRate());
-        addFeatureRow(list,"tools","System Tools","Device status and utilities",()->showSettings());
-        addFeatureRow(list,"info","About PulseXt","Version and developer links",()->showAbout());
         showPage("Home",c);
         for(int i=0;i<list.getChildCount();i++){View child=list.getChildAt(i);child.setAlpha(0f);child.setTranslationY(dp(10));child.animate().alpha(1f).translationY(0).setStartDelay(45L*i).setDuration(220).start();}
         search.addTextChangedListener(new android.text.TextWatcher(){
