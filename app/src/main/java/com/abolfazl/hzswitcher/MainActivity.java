@@ -335,9 +335,9 @@ public class MainActivity extends Activity {
 
         addLabel(c,"REFRESH RATE",10,MUTED,true,20);
         LinearLayout rates=row();LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(48));rp.topMargin=dp(8);c.addView(rates,rp);
-        int savedRate=gamePrefs.getInt(profileKey(pkg,"refresh"),30);
-        int[] refreshValues={30,60,90,120};
-        String[] refreshLabels={"30 Hz","60 Hz","90 Hz","120 Hz"};
+        int savedRate=gamePrefs.getInt(profileKey(pkg,"refresh"),0);
+        int[] refreshValues={0,60,90,120};
+        String[] refreshLabels={"Default","60 Hz","90 Hz","120 Hz"};
         for(int ri=0;ri<refreshValues.length;ri++){
             final int value=refreshValues[ri];Button b=new Button(this);b.setText(refreshLabels[ri]);b.setAllCaps(false);b.setTextSize(11);b.setTextColor(TEXT);
             b.setBackground(shape(savedRate==value?0xFF49336A:PANEL2,13,savedRate==value?ACCENT:0));
