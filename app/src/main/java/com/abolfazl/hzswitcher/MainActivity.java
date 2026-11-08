@@ -346,7 +346,6 @@ public class MainActivity extends Activity {
                 java.util.regex.Matcher active=java.util.regex.Pattern.compile("mActiveRenderFrameRate=([0-9]+(?:\\\\.[0-9]+)?)").matcher(dump);
                 boolean confirmed=false;
                 while(active.find()){try{if(Math.abs(Float.parseFloat(active.group(1))-hz)<1.2f){confirmed=true;break;}}catch(Exception ignored){}}
-                if(!confirmed){java.util.regex.Matcher peak=java.util.regex.Pattern.compile("peakRefreshRate=([0-9]+(?:\\\\.[0-9]+)?)").matcher(dump);while(peak.find()){try{if(Math.abs(Float.parseFloat(peak.group(1))-hz)<1.2f){confirmed=true;break;}}catch(Exception ignored){}}}
                 message=confirmed?"Applied and verified: "+hz+" Hz.":"Four system settings accepted ("+hz+" Hz), but the active display mode still reports a different rate. HyperOS may be overriding the request.";
                 lastLog=message;
             }catch(Exception e){message="FAILED: "+e.getMessage();lastLog=message;}
