@@ -441,56 +441,84 @@ public class MainActivity extends Activity {
     private void saveGameRestoreState(String pkg){
         RootHardwareController.Result r=RootHardwareController.run(
             "echo BRIGHTNESS:$(settings get system screen_brightness); "+
-            "echo VOLUME:$(cmd media_session volume --stream 3 --get 2>/dev/null | sed -n 's/.*volume=\\([0-9]*\\).*/\\1/p')",5000);
+            "echo BRIGHTNESS_MODE:$(settings get system screen_brightness_mode)",5000);
         int brightness=readTaggedInt(r.output,"BRIGHTNESS:",-1);
-        int volume=readTaggedInt(r.output,"VOLUME:",-1);
-        android.content.SharedPreferences.Editor e=gamePrefs.edit();
-        e.putInt(profileKey(pkg,"restore_brightness"),brightness);
-        e.putInt(profileKey(pkg,"restore_volume"),volume);
-        e.putBoolean(profileKey(pkg,"restore_pending"),true);
-        e.apply();
+        int mode=readTaggedInt(r.output,"BRIGHTNESS_MODE:",-1);
+        if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1){
+            android.util.Log.e("PulseXt","Could not capture original brightness state: "+r.output);
+            gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
+            return;
+        }
+        gamePrefs.edit()
+            .putInt(profileKey(pkg,"restore_brightness"),brightness)
+            .putInt(profileKey(pkg,"restore_brightness_mode"),mode)
+            .putBoolean(profileKey(pkg,"restore_pending"),true)
+            .apply();
     }
 
     private int readTaggedInt(String output,String tag,int fallback){
-        try{for(String line:output.split("\\r?\\n"))if(line.startsWith(tag))return Integer.parseInt(line.substring(tag.length()).trim());}catch(Exception ignored){}
+        try{
+            for(String line:output.split("\\r?\\n"))
+                if(line.startsWith(tag))return Integer.parseInt(line.substring(tag.length()).trim());
+        }catch(Exception ignored){}
         return fallback;
     }
 
     private final android.os.Handler gameRestoreHandler=new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable gameRestoreRunnable;
     private void startGameRestoreMonitor(String pkg){
+        if(!gamePrefs.getBoolean(profileKey(pkg,"restore_pending"),false))return;
         if(gameRestoreRunnable!=null)gameRestoreHandler.removeCallbacks(gameRestoreRunnable);
         final boolean[] seenGame={false};
-        gameRestoreRunnable=new Runnable(){public void run(){
-            if(!gamePrefs.getBoolean(profileKey(pkg,"restore_pending"),false))return;
-            RootHardwareController.Result fg=RootHardwareController.run(
-                "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'",3000);
-            boolean active=fg.ok()&&fg.output.contains(pkg);
-            if(active)seenGame[0]=true;
-            else if(seenGame[0]){restoreGameState(pkg);gameRestoreRunnable=null;return;}
-            gameRestoreHandler.postDelayed(this,1200);
-        }};
-        gameRestoreHandler.postDelayed(gameRestoreRunnable,1200);
+        gameRestoreRunnable=new Runnable(){
+            @Override public void run(){
+                if(!gamePrefs.getBoolean(profileKey(pkg,"restore_pending"),false)){
+                    gameRestoreRunnable=null;return;
+                }
+                RootHardwareController.Result fg=RootHardwareController.run(
+                    "dumpsys activity activities 2>/dev/null | grep -E 'mResumedActivity|topResumedActivity' ; "+
+                    "dumpsys window 2>/dev/null | grep -m1 mCurrentFocus",4000);
+                boolean active=fg.ok()&&fg.output.contains(pkg);
+                if(active)seenGame[0]=true;
+                else if(seenGame[0]){
+                    restoreGameBrightness(pkg);
+                    gameRestoreRunnable=null;return;
+                }
+                gameRestoreHandler.postDelayed(this,1000);
+            }
+        };
+        gameRestoreHandler.postDelayed(gameRestoreRunnable,700);
     }
 
-    private void restoreGameState(String pkg){
+    private void restoreGameBrightness(String pkg){
         int brightness=gamePrefs.getInt(profileKey(pkg,"restore_brightness"),-1);
-        int volume=gamePrefs.getInt(profileKey(pkg,"restore_volume"),-1);
-        StringBuilder script=new StringBuilder();
-        if(brightness>=0)script.append("settings put system screen_brightness ").append(Math.max(0,Math.min(255,brightness))).append("; ");
-        if(volume>=0)script.append("cmd media_session volume --stream 3 --set ").append(Math.max(0,Math.min(100,volume))).append("; ");
-        RootHardwareController.Result r=RootHardwareController.run(script.toString(),7000);
-        gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
-        if(!r.ok())android.util.Log.e("PulseXt","Restore after game failed: "+r.output);
+        int mode=gamePrefs.getInt(profileKey(pkg,"restore_brightness_mode"),-1);
+        if(brightness<0||brightness>255||mode<0||mode>1){
+            android.util.Log.e("PulseXt","Saved brightness state invalid; refusing to overwrite current display setting");
+            gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
+            return;
+        }
+        RootHardwareController.Result r=RootHardwareController.run(
+            "settings put system screen_brightness_mode 0 && "+
+            "settings put system screen_brightness "+brightness+" && "+
+            "settings put system screen_brightness_mode "+mode+" && "+
+            "[ \"$(settings get system screen_brightness)\" = \""+brightness+"\" ] && "+
+            "[ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]",7000);
+        if(r.ok()){
+            gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
+            android.util.Log.i("PulseXt","Original display brightness and auto mode restored for "+pkg);
+        }else{
+            android.util.Log.e("PulseXt","Brightness restore failed; pending state retained: "+r.output);
+            gameRestoreHandler.postDelayed(()->restoreGameBrightness(pkg),2500);
+        }
     }
 
     private void applyGameDisplaySound(String pkg){
-        int volume=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)));
-        int volumeLevel=Math.round(volume*15f/100f);
-        String script="settings put system screen_brightness 255"+
-            " && cmd media_session volume --stream 3 --set "+volumeLevel;
+        String script="settings put system screen_brightness_mode 0 && "+
+            "settings put system screen_brightness 255 && "+
+            "[ \"$(settings get system screen_brightness)\" = \"255\" ]";
         RootHardwareController.Result r=RootHardwareController.run(script,8000);
-        if(!r.ok())android.util.Log.e("PulseXt","Display/sound apply failed: "+r.output);
+        if(!r.ok())android.util.Log.e("PulseXt","Game brightness apply failed: "+r.output);
     }
 
     private void applyGameQuickToggles(String pkg){
