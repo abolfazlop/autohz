@@ -934,7 +934,7 @@ public class MainActivity extends Activity {
                 // Match the reference app's four-setting method. HyperOS reads
                 // the vendor key plus Android's min/peak/user refresh-rate policy.
                 // Tell Android DisplayManager the requested physical mode as well as HyperOS settings.
-                String cmd="cmd display set-user-preferred-display-mode 0 "+mode.getPhysicalWidth()+" "+mode.getPhysicalHeight()+" "+hz+
+                String cmd="cmd display set-user-preferred-display-mode "+mode.getPhysicalWidth()+" "+mode.getPhysicalHeight()+" "+hz+" 0"+
                     " && settings put secure miui_refresh_rate "+hz+
                     " && settings put system min_refresh_rate "+hz+
                     " && settings put system peak_refresh_rate "+hz+
