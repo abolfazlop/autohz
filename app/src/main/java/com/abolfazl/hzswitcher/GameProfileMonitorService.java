@@ -89,11 +89,11 @@ public final class GameProfileMonitorService extends Service {
             boolean displayOk=false;
             if(brightness>=0&&brightness<=255&&(mode==0||mode==1)){
                 RootHardwareController.Result display=RootHardwareController.run(
-                    "settings put system screen_brightness_mode 0 && "+
-                    "settings put system screen_brightness "+brightness+" && "+
-                    "settings put system screen_brightness_mode "+mode+" && "+
-                    "[ \"$(settings get system screen_brightness)\" = \""+brightness+"\" ] && "+
-                    "[ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]",7000);
+                    "settings --user 0 put system screen_brightness_mode 0 && "+
+                    "settings --user 0 put system screen_brightness "+brightness+" && "+
+                    "settings --user 0 put system screen_brightness_mode "+mode+" && "+
+                    "[ \"$(settings --user 0 get system screen_brightness)\" = \""+brightness+"\" ] && "+
+                    "[ \"$(settings --user 0 get system screen_brightness_mode)\" = \""+mode+"\" ]",7000);
                 displayOk=display.ok();
                 if(!displayOk)Log.e(TAG,"Brightness restore failed: "+display.output);
             }else Log.e(TAG,"Saved brightness state invalid");
@@ -112,9 +112,10 @@ public final class GameProfileMonitorService extends Service {
             boolean batterySaverRestored=false;
             if(batterySaver==0||batterySaver==1){
                 String low=batterySaver==1?"1":"0";
-                RootHardwareController.Result power=RootHardwareController.run(
-                    "cmd power set-mode "+low+"; settings put global low_power "+low+"; "+
-                    "[ \"$(settings get global low_power)\" = \""+low+"\" ]",7000);
+                String restorePowerScript="cmd power set-mode "+low+" && settings put global low_power "+low;
+                if(batterySaver==0)restorePowerScript+=" && settings put global low_power_sticky 0";
+                restorePowerScript+=" && [ \"$(settings get global low_power)\" = \""+low+"\" ] && dumpsys power 2>/dev/null | grep -qi 'mLowPowerModeEnabled="+(batterySaver==1?"true":"false")+"'";
+                RootHardwareController.Result power=RootHardwareController.run(restorePowerScript,7000);
                 batterySaverRestored=power.ok();
                 if(!batterySaverRestored)Log.e(TAG,"Battery Saver restore failed: "+power.output);
             }
