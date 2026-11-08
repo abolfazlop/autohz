@@ -335,9 +335,9 @@ public class MainActivity extends Activity {
 
         addLabel(c,"REFRESH RATE",10,MUTED,true,20);
         LinearLayout rates=row();LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(48));rp.topMargin=dp(8);c.addView(rates,rp);
-        int savedRate=gamePrefs.getInt(profileKey(pkg,"refresh"),120);
-        int[] refreshValues={0,60,90,120};
-        String[] refreshLabels={"Default","60 Hz","90 Hz","120 Hz"};
+        int savedRate=gamePrefs.getInt(profileKey(pkg,"refresh"),30);
+        int[] refreshValues={30,60,90,120};
+        String[] refreshLabels={"30 Hz","60 Hz","90 Hz","120 Hz"};
         for(int ri=0;ri<refreshValues.length;ri++){
             final int value=refreshValues[ri];Button b=new Button(this);b.setText(refreshLabels[ri]);b.setAllCaps(false);b.setTextSize(11);b.setTextColor(TEXT);
             b.setBackground(shape(savedRate==value?0xFF49336A:PANEL2,13,savedRate==value?ACCENT:0));
@@ -933,7 +933,9 @@ public class MainActivity extends Activity {
                 if(!prefs.getBoolean("has_backup",false))saveBackup();
                 // Match the reference app's four-setting method. HyperOS reads
                 // the vendor key plus Android's min/peak/user refresh-rate policy.
-                String cmd="settings put secure miui_refresh_rate "+hz+
+                // Tell Android DisplayManager the requested physical mode as well as HyperOS settings.
+                String cmd="cmd display set-user-preferred-display-mode 0 "+mode.getPhysicalWidth()+" "+mode.getPhysicalHeight()+" "+hz+
+                    " && settings put secure miui_refresh_rate "+hz+
                     " && settings put system min_refresh_rate "+hz+
                     " && settings put system peak_refresh_rate "+hz+
                     " && settings put system user_refresh_rate "+hz;
