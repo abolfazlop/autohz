@@ -118,7 +118,8 @@ public final class GameProfileMonitorService extends Service {
                 batterySaverRestored=power.ok();
                 if(!batterySaverRestored)Log.e(TAG,"Battery Saver restore failed: "+power.output);
             }
-            boolean success=displayRestored&&volumeRestored&&batterySaverRestored;
+            final boolean batterySaverRestoredFinal=batterySaverRestored;
+            boolean success=displayRestored&&volumeRestored&&batterySaverRestoredFinal;
             if(success){
                 prefs.edit().putBoolean(gamePackage+".restore_pending",false)
                     .putBoolean("monitor_seen_game",false).remove(ACTIVE_PACKAGE).apply();
@@ -128,7 +129,7 @@ public final class GameProfileMonitorService extends Service {
                     Log.i(TAG,"Original game settings restored for "+gamePackage);
                     stopSelf();
                 }else{
-                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestored);
+                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestoredFinal);
                     handler.postDelayed(()->restoreAndFinish(),2500);
                 }
             });
