@@ -20,7 +20,8 @@ public class MainActivity extends Activity {
     private static final int TEXT=0xFFF3F6FA, MUTED=0xFF98A7B8, ACCENT=0xFF9BE7D0;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private android.content.SharedPreferences prefs;
-    private TextView rootLabel, rootDetail, rateValue, rateCaption, resultLabel, deviceLabel;
+    private TextView rootLabel, rootDetail, rateValue, rateCaption, resultLabel, deviceLabel, brightnessValue;
+    private SeekBar brightnessSlider;
     private final int[] rateOptions={30,40,48,50,60,72,80,90,96,100,120};
     private final ArrayList<Button> rateButtons=new ArrayList<>();
     private Button restoreButton;
@@ -79,6 +80,26 @@ public class MainActivity extends Activity {
         View line=new View(this);line.setBackgroundColor(0xFF2B394A);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(1));lp.topMargin=dp(20);lp.bottomMargin=dp(16);hero.addView(line,lp);
         deviceLabel=text("POCO X7 Pro  ·  HyperOS 3 profile",12,0xFFC5D0DC,false);hero.addView(deviceLabel);
 
+        addLabel(page,"Display brightness",18,TEXT,true,28);
+        addLabel(page,"Adjust your device screen brightness.",13,MUTED,false,6);
+        LinearLayout brightnessCard=column();pad(brightnessCard,18,16,18,16);brightnessCard.setBackground(shape(PANEL,20,0));
+        LinearLayout.LayoutParams bcp=new LinearLayout.LayoutParams(-1,-2);bcp.topMargin=dp(14);page.addView(brightnessCard,bcp);
+        LinearLayout brightnessHeader=row();
+        brightnessHeader.addView(text("Brightness level",14,TEXT,true),new LinearLayout.LayoutParams(0,-2,1));
+        brightnessValue=text("--%",14,ACCENT,true);brightnessHeader.addView(brightnessValue);
+        brightnessCard.addView(brightnessHeader);
+        brightnessSlider=new SeekBar(this);brightnessSlider.setMax(255);
+        if(android.os.Build.VERSION.SDK_INT>=21)brightnessSlider.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));
+        if(android.os.Build.VERSION.SDK_INT>=21)brightnessSlider.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));
+        LinearLayout.LayoutParams bsp=new LinearLayout.LayoutParams(-1,-2);bsp.topMargin=dp(10);brightnessCard.addView(brightnessSlider,bsp);
+        brightnessSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            @Override public void onProgressChanged(SeekBar seekBar,int progress,boolean fromUser){
+                if(fromUser)brightnessValue.setText(Math.round(progress*100f/255f)+"%");
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar){}
+            @Override public void onStopTrackingTouch(SeekBar seekBar){applyBrightness(seekBar.getProgress());}
+        });
+
         addLabel(page,"Refresh rate",18,TEXT,true,28);
         addLabel(page,"Choose a mode supported by your display.",13,MUTED,false,6);
         LinearLayout choices=column();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=dp(14);page.addView(choices,cp);
@@ -122,6 +143,7 @@ public class MainActivity extends Activity {
             b.setBackground(shape(active?0xFF235D50:PANEL2,16,active?ACCENT:0));
         }
         if(restoreButton!=null)restoreButton.setEnabled(rootReady&&!busy&&prefs.getBoolean("has_backup",false));
+        if(brightnessSlider!=null)brightnessSlider.setEnabled(rootReady&&!busy);
     }
 
     private Display.Mode[] modes(){
@@ -145,7 +167,7 @@ public class MainActivity extends Activity {
                 rootLabel.setTextColor(ok?ACCENT:0xFFFF9B9B);
                 rootDetail.setText(ok?"Root shell verified. Select a refresh rate to apply.":"Root access was not granted. Approve the superuser request in Magisk / KernelSU.");
                 resultLabel.setText(ok?"• Root shell verified. Ready to apply a display mode.":"• Root access not granted. Check your superuser manager.");
-                renderChoices();refreshDisplay();
+                renderChoices();refreshDisplay();loadBrightness();
             });
         });
     }
@@ -174,12 +196,40 @@ public class MainActivity extends Activity {
     private String quote(String s){return "'"+s.replace("'","'\\''")+"'";}
 
     private void saveBackup(){
-        String[] pairs={"secure miui_refresh_rate","secure user_refresh_rate","system min_refresh_rate","system peak_refresh_rate","system user_refresh_rate"};
+        String[] pairs={"secure miui_refresh_rate","secure user_refresh_rate","system min_refresh_rate","system peak_refresh_rate","system user_refresh_rate","system screen_brightness"};
         StringBuilder b=new StringBuilder();
         for(String pair:pairs){String[] a=pair.split(" ");String val=readSetting(a[0],a[1]);if(val.equals("__ERROR__"))throw new RuntimeException("Could not read "+pair);b.append(pair).append("=").append(val).append("\n");}
         prefs.edit().putString("backup",b.toString()).putBoolean("has_backup",true).apply();
     }
 
+    private void loadBrightness(){
+        if(!rootReady||brightnessSlider==null)return;
+        executor.execute(()->{
+            CommandResult r=execRoot("settings get system screen_brightness");
+            int value=128;
+            try{value=Math.max(0,Math.min(255,Integer.parseInt(r.output.trim())));}catch(Exception ignored){}
+            final int level=value;
+            runOnUiThread(()->{brightnessSlider.setProgress(level);brightnessValue.setText(Math.round(level*100f/255f)+"%");});
+        });
+    }
+
+    private void applyBrightness(int value){
+        if(!rootReady||busy)return;
+        final int level=Math.max(0,Math.min(255,value));
+        brightnessValue.setText(Math.round(level*100f/255f)+"%");
+        executor.execute(()->{
+            String message;
+            try{
+                if(!prefs.getBoolean("has_backup",false))saveBackup();
+                CommandResult r=execRoot("settings put system screen_brightness "+level);
+                if(r.exit!=0||r.timeout)throw new RuntimeException(r.output);
+                CommandResult check=execRoot("settings get system screen_brightness");
+                if(!check.output.trim().equals(String.valueOf(level)))throw new RuntimeException("Brightness value could not be verified: "+check.output);
+                message="Brightness set to "+Math.round(level*100f/255f)+"%. User brightness was verified.";
+            }catch(Exception e){message="Brightness failed: "+e.getMessage();}
+            final String result=message;runOnUiThread(()->resultLabel.setText(result));
+        });
+    }
     private void applyRate(int hz){
         if(!rootReady||busy)return;
         Display.Mode mode=modeFor(hz);
@@ -229,6 +279,6 @@ public class MainActivity extends Activity {
         });
     }
 
-    @Override protected void onResume(){super.onResume();if(rateValue!=null)refreshDisplay();}
+    @Override protected void onResume(){super.onResume();if(rateValue!=null){refreshDisplay();if(rootReady)loadBrightness();}}
     @Override protected void onDestroy(){super.onDestroy();executor.shutdownNow();}
 }
