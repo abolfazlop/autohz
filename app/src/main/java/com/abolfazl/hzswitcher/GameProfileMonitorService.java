@@ -118,8 +118,8 @@ public final class GameProfileMonitorService extends Service {
                 batterySaverRestored=power.ok();
                 if(!batterySaverRestored)Log.e(TAG,"Battery Saver restore failed: "+power.output);
             }
-            final boolean batterySaverRestoredFinal=batterySaverRestored;
-            boolean success=displayRestored&&volumeRestored&&batterySaverRestoredFinal;
+            final boolean batterySaverRestoredFinal = (batterySaver == 0 || batterySaver == 1) && batterySaverRestored;
+            final boolean success = displayRestored && volumeRestored && batterySaverRestoredFinal;
             if(success){
                 prefs.edit().putBoolean(gamePackage+".restore_pending",false)
                     .putBoolean("monitor_seen_game",false).remove(ACTIVE_PACKAGE).apply();
