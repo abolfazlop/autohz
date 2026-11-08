@@ -14,6 +14,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
+import android.widget.Toast;
 
 public final class GameProfileMonitorService extends Service {
     private static final String TAG="PulseXtGameMonitor";
@@ -42,6 +43,7 @@ public final class GameProfileMonitorService extends Service {
                             seenGame=true;
                             getSharedPreferences(PREFS,MODE_PRIVATE).edit()
                                 .putBoolean("monitor_seen_game",true).apply();
+                            Toast.makeText(GameProfileMonitorService.this,"Game Profile activated",Toast.LENGTH_LONG).show();
                             new Thread(()->{applyGameHardwareProfile(gamePackage);applyGameRefreshProfile(gamePackage);},"PulseXtHardwareApply").start();
                         }
                         handler.postDelayed(this,1000);
@@ -86,8 +88,9 @@ public final class GameProfileMonitorService extends Service {
      */
     private void applyGameRefreshProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
-        int hz=prefs.getInt(pkg+".refresh",30);
-        if(hz!=30&&hz!=60&&hz!=90&&hz!=120)return;
+        int hz=prefs.getInt(pkg+".refresh",0);
+        if(hz==0){Log.i(TAG,"Game refresh set to Default; leaving system refresh policy unchanged");return;}
+        if(hz!=60&&hz!=90&&hz!=120)return;
 
         DisplayManager dm=(DisplayManager)getSystemService(Context.DISPLAY_SERVICE);
         Display display=dm==null?null:dm.getDisplay(Display.DEFAULT_DISPLAY);
