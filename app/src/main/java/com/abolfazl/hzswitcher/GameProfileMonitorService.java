@@ -210,11 +210,12 @@ public final class GameProfileMonitorService extends Service {
         int rate=prefs.getInt(pkg+".touch_rate",0);
         if(rate!=0&&rate!=240&&rate!=480&&rate!=1000)return false;
         String module="/data/adb/modules/pulsext_touch_engine/pulsext-touchctl";
-        String command="[ -x "+module+" ] && "+module+" apply "+rate;
-        RootHardwareController.Result result=RootHardwareController.run(command,7000);
+        String operation=rate==0?"restore":"apply "+rate;
+        String command="[ -x "+module+" ] && "+module+" "+operation;
+        RootHardwareController.Result result=RootHardwareController.run(command,10000);
         boolean ok=result.ok()&&result.output.contains("verified=true");
-        Log.i(TAG,"KernelSU touch apply rate="+rate+" verified="+ok+" output="+result.output);
-        return rate==0?ok:ok;
+        Log.i(TAG,"KernelSU touch operation="+operation+" verified="+ok+" output="+result.output);
+        return ok;
     }
 
     private boolean restoreGameTouchProfile(String pkg){
