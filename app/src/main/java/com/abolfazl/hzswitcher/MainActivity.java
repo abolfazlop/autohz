@@ -34,12 +34,13 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         prefs=getSharedPreferences("hz_backup_v2",MODE_PRIVATE);
         getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(BG);
+        getWindow().setNavigationBarColor(0xFF101010);
         if(android.os.Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(true);
         if(android.os.Build.VERSION.SDK_INT>=29){
             getWindow().setStatusBarContrastEnforced(false);
             getWindow().setNavigationBarContrastEnforced(false);
         }
+        if(android.os.Build.VERSION.SDK_INT>=28)getWindow().setNavigationBarDividerColor(0xFF101010);
         buildUi();
         refreshDisplay();
         checkRoot();
@@ -70,13 +71,6 @@ public class MainActivity extends Activity {
 
     private void buildUi() {
         appRoot=column(); appRoot.setBackgroundColor(0xFF000000);
-        appRoot.setOnApplyWindowInsetsListener((v,insets)->{
-            int bottom=0;
-            if(android.os.Build.VERSION.SDK_INT>=30) bottom=insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
-            else if(android.os.Build.VERSION.SDK_INT>=21) bottom=insets.getSystemWindowInsetBottom();
-            v.setPadding(0,0,0,bottom);
-            return insets;
-        });
         LinearLayout top=row(); pad(top,24,18,24,12);
         TextView appName=text("AutoHz",14,TEXT,true);
         top.addView(appName,new LinearLayout.LayoutParams(0,-2,1));
@@ -87,6 +81,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams hostParams=new LinearLayout.LayoutParams(-1,0,1);
         appRoot.addView(pageHost,hostParams);
         bottomBar=row(); bottomBar.setBackgroundColor(0xFF101010); pad(bottomBar,12,8,12,8);
+        bottomBar.setClipToPadding(false);
+        bottomBar.setElevation(dp(8));
         appRoot.addView(bottomBar,new LinearLayout.LayoutParams(-1,dp(68)));
         setContentView(appRoot); showHome();
     }
