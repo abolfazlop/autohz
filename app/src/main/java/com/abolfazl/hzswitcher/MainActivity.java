@@ -208,6 +208,7 @@ public class MainActivity extends Activity {
         LinearLayout list=column(); c.addView(list);
         addFeatureRow(list,"brightness","Display Brightness","Smoothly adjust screen brightness",()->showBrightness());
         addFeatureRow(list,"refresh","Refresh Rate","30  /  60  /  90  /  120 Hz",()->showRefreshRate());
+        addFeatureRow(list,"tools","Game Profile","Per-game performance modes and launch shortcuts",()->showGameProfiles());
         showPage("Home",c);
         for(int i=0;i<list.getChildCount();i++){View child=list.getChildAt(i);child.setAlpha(0f);child.setTranslationY(dp(10));child.animate().alpha(1f).translationY(0).setStartDelay(45L*i).setDuration(220).start();}
         search.addTextChangedListener(new android.text.TextWatcher(){
@@ -219,6 +220,115 @@ public class MainActivity extends Activity {
                 }
             }
             public void afterTextChanged(android.text.Editable e){}
+        });
+    }
+
+
+    // Game profiles are explicit per-app presets. Android's GameManager shell
+    // command is used through the already verified root shell; unsupported
+    // device/game combinations are reported rather than shown as successful.
+    private String selectedGamePackage;
+    private String selectedGameLabel;
+    private LinearLayout gameListContainer;
+    private TextView selectedGameTitle, gameProfileStatus;
+    private final Map<String,String> gameLabels = new LinkedHashMap<>();
+
+    private void showGameProfiles(){
+        LinearLayout c=pageContent();
+        addLabel(c,"Choose a game",18,TEXT,true,6);
+        addLabel(c,"Select an installed game, then choose a system game mode.",13,MUTED,false,6);
+        LinearLayout selected=column(); pad(selected,16,16,16,16);
+        selected.setBackground(shape(0xFF211A2D,20,0xFF493765));
+        LinearLayout.LayoutParams selp=new LinearLayout.LayoutParams(-1,-2); selp.topMargin=dp(16); c.addView(selected,selp);
+        selectedGameTitle=text("No game selected",17,TEXT,true); selected.addView(selectedGameTitle);
+        gameProfileStatus=text("Select a game below to configure its profile.",12,MUTED,false);
+        LinearLayout.LayoutParams stp=new LinearLayout.LayoutParams(-1,-2); stp.topMargin=dp(7); selected.addView(gameProfileStatus,stp);
+
+        addLabel(c,"PERFORMANCE MODE",10,MUTED,true,20);
+        LinearLayout modes=row(); LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(52)); mp.topMargin=dp(9); c.addView(modes,mp);
+        addGameModeButton(modes,"Battery","battery");
+        addGameModeButton(modes,"Standard","standard");
+        addGameModeButton(modes,"Performance","performance");
+
+        Button launch=new Button(this); launch.setText("Launch selected game"); launch.setAllCaps(false);
+        launch.setTextColor(TEXT); launch.setBackground(shape(0xFF49336A,16,0));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(50)); lp.topMargin=dp(10); c.addView(launch,lp);
+        launch.setOnClickListener(v->{
+            if(selectedGamePackage==null){gameProfileStatus.setText("Choose a game first.");return;}
+            try{android.content.Intent i=getPackageManager().getLaunchIntentForPackage(selectedGamePackage);
+                if(i==null)throw new IllegalStateException("No launch activity is available.");
+                startActivity(i);
+            }catch(Exception e){gameProfileStatus.setText("Launch failed: "+e.getMessage());}
+        });
+
+        addLabel(c,"INSTALLED GAMES",10,MUTED,true,22);
+        gameListContainer=column(); LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(-1,-2); glp.topMargin=dp(10); c.addView(gameListContainer,glp);
+        loadInstalledGames();
+        showPage("Game Profile",c);
+    }
+
+    private void addGameModeButton(LinearLayout parent,String label,String mode){
+        Button b=new Button(this); b.setText(label); b.setAllCaps(false); b.setTextSize(11);
+        b.setTextColor(TEXT); b.setBackground(shape(PANEL2,14,0xFF40364F));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1); p.leftMargin=dp(3); p.rightMargin=dp(3); parent.addView(b,p);
+        b.setOnClickListener(v->applyGameMode(mode));
+    }
+
+    private void loadInstalledGames(){
+        if(gameListContainer==null)return;
+        gameListContainer.removeAllViews(); gameLabels.clear();
+        try{
+            android.content.pm.PackageManager pm=getPackageManager();
+            List<android.content.pm.ApplicationInfo> apps=pm.getInstalledApplications(0);
+            Collections.sort(apps,(a,b)->pm.getApplicationLabel(a).toString().compareToIgnoreCase(pm.getApplicationLabel(b).toString()));
+            for(android.content.pm.ApplicationInfo app:apps){
+                if(app.packageName.equals(getPackageName()) || app.category!=android.content.pm.ApplicationInfo.CATEGORY_GAME)continue;
+                if(pm.getLaunchIntentForPackage(app.packageName)==null)continue;
+                String label=pm.getApplicationLabel(app).toString(); gameLabels.put(app.packageName,label);
+                addGameRow(label,app.packageName,pm.getApplicationIcon(app));
+            }
+        }catch(Exception e){gameProfileStatus.setText("Could not read installed games: "+e.getMessage());}
+        if(gameLabels.isEmpty()){
+            TextView empty=text("No apps are marked as games by Android. You can still use system Game Space for titles not listed here.",13,MUTED,false);
+            pad(empty,14,14,14,14); empty.setBackground(shape(PANEL,16,0)); gameListContainer.addView(empty);
+        }
+    }
+
+    private void addGameRow(String label,String pkg,android.graphics.drawable.Drawable appIcon){
+        LinearLayout item=row(); pad(item,12,10,12,10); item.setBackground(shape(PANEL,16,0xFF292B30));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(66)); p.bottomMargin=dp(8); gameListContainer.addView(item,p);
+        ImageView image=new ImageView(this); image.setImageDrawable(appIcon); item.addView(image,new LinearLayout.LayoutParams(dp(38),dp(38)));
+        LinearLayout labels=column(); LinearLayout.LayoutParams l=new LinearLayout.LayoutParams(0,-2,1); l.leftMargin=dp(12); item.addView(labels,l);
+        labels.addView(text(label,14,TEXT,true)); TextView packageText=text(pkg,10,MUTED,false); labels.addView(packageText);
+        TextView tick=text("›",25,ACCENT,false); item.addView(tick);
+        item.setOnClickListener(v->{
+            selectedGamePackage=pkg; selectedGameLabel=label;
+            getSharedPreferences("game_profiles",MODE_PRIVATE).edit().putString("selected_package",pkg).apply();
+            selectedGameTitle.setText(label);
+            gameProfileStatus.setText("Selected: "+pkg+". Choose a mode to apply it.");
+            for(int i=0;i<gameListContainer.getChildCount();i++)gameListContainer.getChildAt(i).setBackground(shape(PANEL,16,0xFF292B30));
+            item.setBackground(shape(0xFF302443,16,ACCENT));
+        });
+    }
+
+    private void applyGameMode(String mode){
+        if(selectedGamePackage==null){gameProfileStatus.setText("Choose a game first.");return;}
+        if(!rootReady){gameProfileStatus.setText("Root access is required to request a per-game system mode.");return;}
+        gameProfileStatus.setText("Applying "+mode+" mode…");
+        final String pkg=selectedGamePackage;
+        executor.execute(()->{
+            CommandResult r=execRoot("cmd game mode set --user 0 "+mode+" "+quote(pkg));
+            String message;
+            if(r.exit!=0||r.timeout){
+                message="Not applied. This ROM or game may not expose Android Game Mode. "+r.output;
+            }else{
+                CommandResult verify=execRoot("cmd game mode list "+quote(pkg));
+                message="System accepted the "+mode+" mode request for "+selectedGameLabel+".";
+                if(!verify.output.isEmpty())message+="\\n"+verify.output;
+                getSharedPreferences("game_profiles",MODE_PRIVATE).edit().putString("mode_"+pkg,mode).apply();
+            }
+            final String result=message;
+            runOnUiThread(()->{if(gameProfileStatus!=null)gameProfileStatus.setText(result);});
         });
     }
 
