@@ -441,7 +441,7 @@ public class MainActivity extends Activity {
     private void saveGameRestoreState(String pkg){
         RootHardwareController.Result r=RootHardwareController.run(
             "echo BRIGHTNESS:$(settings get system screen_brightness); "+
-            "echo BRIGHTNESS_MODE:$(settings get system screen_brightness_mode); "+
+            "echo BRIGHTNESS_MODE:$(settings --user 0 get system screen_brightness_mode); "+
             "echo BATTERY_SAVER:$(settings get global low_power)",5000);
         int brightness=readTaggedInt(r.output,"BRIGHTNESS:",-1);
         int mode=readTaggedInt(r.output,"BRIGHTNESS_MODE:",-1);
