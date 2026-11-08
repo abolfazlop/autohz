@@ -18,7 +18,7 @@ import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
     private static final int BG=0xFF08090B, PANEL=0xFF191A1D, PANEL2=0xFF24262A;
-    private static final int TEXT=0xFFF5F5F7, MUTED=0xFF9A9CA3, ACCENT=0xFFB7F36B;
+    private static final int TEXT=0xFFF5F3FA, MUTED=0xFFA7A1B3, ACCENT=0xFFB58CFF;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private android.content.SharedPreferences prefs;
     private TextView rootLabel, rootDetail, rateValue, rateCaption, resultLabel, deviceLabel, brightnessValue;
@@ -76,7 +76,7 @@ public class MainActivity extends Activity {
         appRoot=column(); appRoot.setBackgroundColor(BG);
         appRoot.setClipToPadding(false);
         LinearLayout top=row(); pad(top,22,14,22,10);
-        TextView appName=text("AUTOHZ",13,ACCENT,true);
+        TextView appName=text("PULSEXT",13,ACCENT,true);
         appName.setLetterSpacing(0.14f);
         top.addView(appName,new LinearLayout.LayoutParams(0,-2,1));
         TextView live=text("●  DISPLAY CONTROL",10,MUTED,true);
@@ -119,7 +119,7 @@ public class MainActivity extends Activity {
         LinearLayout item=row(); pad(item,16,15,16,15); item.setBackground(shape(PANEL,22,0xFF292B30));
         LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,dp(94)); ip.bottomMargin=dp(11); list.addView(item,ip);
         TextView glyph=text(icon,24,ACCENT,true); glyph.setGravity(Gravity.CENTER);
-        glyph.setBackground(shape(0xFF292D27,18,0)); item.addView(glyph,new LinearLayout.LayoutParams(dp(54),dp(54)));
+        glyph.setBackground(shape(0xFF30263F,18,0)); item.addView(glyph,new LinearLayout.LayoutParams(dp(54),dp(54)));
         LinearLayout labels=column(); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1); lp.leftMargin=dp(15); item.addView(labels,lp);
         labels.addView(text(title,18,TEXT,true)); TextView sub=text(subtitle,12,MUTED,false);
         LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2); sp.topMargin=dp(5); labels.addView(sub,sp);
@@ -131,7 +131,7 @@ public class MainActivity extends Activity {
         if(bottomBar==null)return; bottomBar.removeAllViews();
         String[] names={"Home","Settings","About"}; String[] icons={"⌂","⬡","ⓘ"};
         for(int i=0;i<names.length;i++){ final String n=names[i]; boolean active=currentPage.equals(n);
-            LinearLayout tab=column(); tab.setGravity(Gravity.CENTER); tab.setBackground(shape(active?0xFF242B20:0x00000000,18,0));
+            LinearLayout tab=column(); tab.setGravity(Gravity.CENTER); tab.setBackground(shape(active?0xFF302443:0x00000000,18,0));
             TextView glyph=text(icons[i],23,active?ACCENT:0xFF777A80,true); glyph.setGravity(Gravity.CENTER);
             tab.addView(glyph);
             TextView label=text(n,11,active?TEXT:0xFF777A80,active); label.setGravity(Gravity.CENTER); tab.addView(label);
@@ -142,7 +142,7 @@ public class MainActivity extends Activity {
 
     private void showHome(){
         LinearLayout c=pageContent();
-        LinearLayout hero=column(); pad(hero,18,18,18,18); hero.setBackground(shape(0xFF1B2118,24,0xFF343F2B));
+        LinearLayout hero=column(); pad(hero,18,18,18,18); hero.setBackground(shape(0xFF211A2D,24,0xFF493765));
         TextView eyebrow=text("YOUR DISPLAY, YOUR RULES",10,ACCENT,true); eyebrow.setLetterSpacing(.12f); hero.addView(eyebrow);
         TextView headline=text("Make every frame\ncount.",27,TEXT,false); headline.setTypeface(Typeface.create("sans-serif-light",Typeface.NORMAL));
         LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2); hp.topMargin=dp(8); hero.addView(headline,hp);
@@ -158,7 +158,7 @@ public class MainActivity extends Activity {
         addFeatureRow(list,"☼","Display Brightness","Smoothly adjust screen brightness",()->showBrightness());
         addFeatureRow(list,"▣","Refresh Rate","30  /  60  /  90  /  120 Hz",()->showRefreshRate());
         addFeatureRow(list,"⚙","System Tools","Device status and utilities",()->showSettings());
-        addFeatureRow(list,"ⓘ","About AutoHz","Version and app information",()->showAbout());
+        addFeatureRow(list,"ⓘ","About PulseXt","Version and developer links",()->showAbout());
         showPage("Home",c);
         for(int i=0;i<list.getChildCount();i++){View child=list.getChildAt(i);child.setAlpha(0f);child.setTranslationY(dp(10));child.animate().alpha(1f).translationY(0).setStartDelay(45L*i).setDuration(220).start();}
         search.addTextChangedListener(new android.text.TextWatcher(){
@@ -229,11 +229,26 @@ public class MainActivity extends Activity {
     }
 
     private void showAbout(){
-        LinearLayout c=pageContent(); TextView logo=text("AutoHz",42,TEXT,false); logo.setGravity(Gravity.CENTER);
+        LinearLayout c=pageContent(); TextView logo=text("PulseXt",42,TEXT,false); logo.setGravity(Gravity.CENTER);
         c.addView(logo,new LinearLayout.LayoutParams(-1,dp(110)));
-        TextView desc=text("Display control and system tools for HyperOS.",15,MUTED,false); desc.setGravity(Gravity.CENTER); c.addView(desc);
-        TextView version=text("Version 1.0  •  POCO X7 Pro profile",13,MUTED,false); version.setGravity(Gravity.CENTER); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2); vp.topMargin=dp(18); c.addView(version,vp);
+        TextView desc=text("A refined display control toolkit for HyperOS.",15,MUTED,false); desc.setGravity(Gravity.CENTER); c.addView(desc);
+        TextView version=text("Version 1.0.0  •  Built for Android / HyperOS",13,MUTED,false); version.setGravity(Gravity.CENTER); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2); vp.topMargin=dp(18); c.addView(version,vp);
+        LinearLayout links=column(); LinearLayout.LayoutParams linksP=new LinearLayout.LayoutParams(-1,-2); linksP.topMargin=dp(28); c.addView(links,linksP);
+        addDeveloperLink(links,"CREATOR","@U_GamerXt","https://t.me/U_GamerXt");
+        addDeveloperLink(links,"DEVELOPER CHANNEL","@magiskmodulext","https://t.me/magiskmodulext");
+        TextView footer=text("Made with care • PulseXt",11,MUTED,false); footer.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2); fp.topMargin=dp(24); c.addView(footer,fp);
         showPage("About",c);
+    }
+
+    private void addDeveloperLink(LinearLayout parent,String title,String handle,String url){
+        LinearLayout card=row(); pad(card,16,14,16,14); card.setBackground(shape(PANEL,18,0xFF3C3150));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(76)); p.bottomMargin=dp(10); parent.addView(card,p);
+        LinearLayout labels=column(); card.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+        TextView caption=text(title,10,MUTED,true); caption.setLetterSpacing(.1f); labels.addView(caption);
+        TextView value=text(handle,16,ACCENT,true); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2); vp.topMargin=dp(5); labels.addView(value,vp);
+        TextView arrow=text("↗",22,ACCENT,true); card.addView(arrow);
+        card.setOnClickListener(v->{try{android.content.Intent intent=new android.content.Intent(android.content.Intent.ACTION_VIEW,android.net.Uri.parse(url));startActivity(intent);}catch(Exception e){Toast.makeText(this,"Telegram link could not be opened.",Toast.LENGTH_SHORT).show();}});
     }
 
     private void renderChoices(){
@@ -241,7 +256,7 @@ public class MainActivity extends Activity {
             int hz=rateOptions[i];boolean ok=isSupported(hz);boolean active=selectedHz==hz;
             Button b=rateButtons.get(i);b.setEnabled(rootReady&&!busy&&ok);b.setAlpha(ok?1f:0.42f);
             b.setText(hz+" Hz"+(ok?"":" · N/A"));
-            b.setBackground(shape(active?0xFF235D50:PANEL2,16,active?ACCENT:0));
+            b.setBackground(shape(active?0xFF49336A:PANEL2,16,active?ACCENT:0));
         }
         if(restoreButton!=null)restoreButton.setEnabled(rootReady&&!busy&&prefs.getBoolean("has_backup",false));
         if(brightnessSlider!=null)brightnessSlider.setEnabled(rootReady&&!busy);
