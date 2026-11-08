@@ -486,22 +486,61 @@ public class MainActivity extends Activity {
     }
 
     private void addClusterFrequency(LinearLayout parent,String pkg,String cluster,String label,String key,int min,int max,int fallback,boolean manualAllowed){
-        LinearLayout row=column();LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.topMargin=dp(8);parent.addView(row,rp);
-        LinearLayout header=row();header.addView(text(label,12,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout item=column();
+        LinearLayout.LayoutParams itemLp=new LinearLayout.LayoutParams(-1,-2);
+        itemLp.topMargin=dp(10);parent.addView(item,itemLp);
+
+        LinearLayout header=row();
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        header.addView(text(label,12,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
         String prefKey=cluster+"_"+key+"_enabled";
-        Switch enabled=new Switch(this);enabled.setChecked(gamePrefs.getBoolean(profileKey(pkg,prefKey),false));enabled.setEnabled(manualAllowed);header.addView(enabled);row.addView(header);
+        Switch enabled=new Switch(this);
+        enabled.setChecked(gamePrefs.getBoolean(profileKey(pkg,prefKey),false));
+        enabled.setEnabled(manualAllowed);
+        header.addView(enabled);item.addView(header);
+
         String valueKey=cluster+"_"+key+"_mhz";
         int initial=gamePrefs.getInt(profileKey(pkg,valueKey),fallback);
-        TextView value=text(initial+" MHz",11,MUTED,false);row.addView(value);
-        SeekBar bar=new SeekBar(this);bar.setMax((max-min)/50);bar.setProgress(Math.max(0,Math.min((max-min)/50,(initial-min)/50)));
-        if(android.os.Build.VERSION.SDK_INT>=21){bar.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));bar.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));}
-        row.addView(bar);
-        bar.setEnabled(manualAllowed&&enabled.isChecked());value.setAlpha(manualAllowed&&enabled.isChecked()?1f:0.55f);
-        enabled.setOnCheckedChangeListener((button,checked)->{gamePrefs.edit().putBoolean(profileKey(pkg,prefKey),checked).apply();bar.setEnabled(manualAllowed&&checked);value.setAlpha(manualAllowed&&checked?1f:0.55f);});
-        bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-            public void onProgressChanged(SeekBar seek,int progress,boolean fromUser){value.setText((min+progress*50)+" MHz");}
-            public void onStartTrackingTouch(SeekBar seek){}
-            public void onStopTrackingTouch(SeekBar seek){gamePrefs.edit().putInt(profileKey(pkg,valueKey),min+seek.getProgress()*50).apply();}
+        TextView current=text(initial+" MHz",13,ACCENT,true);
+        current.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        Button choose=new Button(this);
+        choose.setText("Choose frequency  ›");
+        choose.setAllCaps(false);choose.setTextSize(12);choose.setTextColor(TEXT);
+        choose.setBackground(shape(0xFF49336A,12,0xFF8F65D8));
+        LinearLayout.LayoutParams chooseLp=new LinearLayout.LayoutParams(-1,dp(46));
+        chooseLp.topMargin=dp(7);item.addView(choose,chooseLp);
+        LinearLayout valueRow=row();valueRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams valueLp=new LinearLayout.LayoutParams(-1,-2);
+        valueLp.topMargin=dp(5);item.addView(valueRow,valueLp);
+        valueRow.addView(text("Selected frequency",10,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));
+        valueRow.addView(current);
+
+        boolean active=manualAllowed&&enabled.isChecked();
+        choose.setEnabled(active);current.setAlpha(active?1f:0.55f);
+        enabled.setOnCheckedChangeListener((button,checked)->{
+            gamePrefs.edit().putBoolean(profileKey(pkg,prefKey),checked).apply();
+            boolean canEdit=manualAllowed&&checked;
+            choose.setEnabled(canEdit);current.setAlpha(canEdit?1f:0.55f);
+        });
+        choose.setOnClickListener(v->{
+            if(!manualAllowed||!enabled.isChecked())return;
+            android.widget.NumberPicker picker=new android.widget.NumberPicker(this);
+            picker.setMinValue(min/50);
+            picker.setMaxValue(max/50);
+            picker.setValue(Math.max(min/50,Math.min(max/50,initial/50)));
+            picker.setWrapSelectorWheel(false);
+            LinearLayout dialogBody=column();pad(dialogBody,18,12,18,8);
+            dialogBody.addView(text("Select "+label,15,TEXT,true));
+            dialogBody.addView(text("Choose a value in MHz",11,MUTED,false));
+            dialogBody.addView(picker,new LinearLayout.LayoutParams(-1,dp(150)));
+            new android.app.AlertDialog.Builder(this)
+                .setView(dialogBody)
+                .setNegativeButton("Cancel",null)
+                .setPositiveButton("Apply",(dialog,which)->{
+                    int selected=picker.getValue()*50;
+                    gamePrefs.edit().putInt(profileKey(pkg,valueKey),selected).apply();
+                    current.setText(selected+" MHz");
+                }).show();
         });
     }
 
