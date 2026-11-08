@@ -317,7 +317,7 @@ public class MainActivity extends Activity {
         gameProfileStatus.setText("Applying "+mode+" mode…");
         final String pkg=selectedGamePackage;
         executor.execute(()->{
-            CommandResult r=execRoot("cmd game mode set --user 0 "+mode+" "+quote(pkg));
+            CommandResult r=execRoot("cmd game mode --user 0 "+mode+" "+quote(pkg));
             String message;
             if(r.exit!=0||r.timeout){
                 message="Not applied. This ROM or game may not expose Android Game Mode. "+r.output;
