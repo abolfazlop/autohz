@@ -42,10 +42,6 @@ public final class RootHardwareController {
         try {
             process=new ProcessBuilder("su","-c",script).redirectErrorStream(true).start();
             ByteArrayOutputStream out=new ByteArrayOutputStream();
-            Thread reader=new Thread(() -> {
-                try(InputStream in=processInput(processRef.get())) { /* unused fallback */ }
-                catch(Exception ignored) {}
-            });
             // Read synchronously with a bounded wait; sysfs probes are short.
             try(InputStream in=process.getInputStream()) {
                 byte[] b=new byte[4096]; int n;
