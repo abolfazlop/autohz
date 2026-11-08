@@ -398,7 +398,7 @@ public class MainActivity extends Activity {
 
         Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
-        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameQuickToggles(pkg);applyGameDisplaySound(pkg);startGameRestoreMonitor(pkg);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
+        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameQuickToggles(pkg);applyGameDisplaySound(pkg);Intent monitor=new Intent(this,GameProfileMonitorService.class);monitor.putExtra("game_package",pkg);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
     }
 
@@ -458,6 +458,8 @@ public class MainActivity extends Activity {
             .putInt(profileKey(pkg,"restore_volume"),volume)
             .putInt(profileKey(pkg,"restore_volume_max"),volumeMax)
             .putBoolean(profileKey(pkg,"restore_pending"),true)
+            .putBoolean("monitor_seen_game",false)
+            .putString("monitor_active_package",pkg)
             .apply();
     }
 
