@@ -96,7 +96,7 @@ public final class GameProfileMonitorService extends Service {
             .putLong(pkg+".restore_refresh_peak",peak).putLong(pkg+".restore_refresh_user",user).apply();
         String script="size=$(wm size 2>/dev/null | awk \"/Physical size/ {print $3}\"); "+
             "w=$(echo $size | cut -dx -f1); h=$(echo $size | cut -dx -f2); "+
-            "cmd display set-user-preferred-display-mode 0 $w $h "+hz+" && "+
+            "cmd display set-user-preferred-display-mode $w $h "+hz+" 0 && "+
             "settings put secure miui_refresh_rate "+hz+" && settings put system min_refresh_rate "+hz+
             " && settings put system peak_refresh_rate "+hz+" && settings put system user_refresh_rate "+hz;
         RootHardwareController.Result r=RootHardwareController.run(script,7000);
