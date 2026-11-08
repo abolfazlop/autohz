@@ -33,6 +33,10 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        if(android.os.Build.VERSION.SDK_INT>=23&&!android.provider.Settings.canDrawOverlays(this)){
+            try{startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,android.net.Uri.parse("package:"+getPackageName())));}
+            catch(Exception e){android.util.Log.w("PulseXt","Overlay permission settings unavailable",e);}
+        }
         prefs=getSharedPreferences("hz_backup_v2",MODE_PRIVATE);
         // Use the classic, inset-safe layout. Target SDK 34 below prevents
         // Android 15+ forced edge-to-edge from placing our custom tab bar
