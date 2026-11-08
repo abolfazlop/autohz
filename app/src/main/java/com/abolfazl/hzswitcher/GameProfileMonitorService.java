@@ -129,6 +129,44 @@ public final class GameProfileMonitorService extends Service {
         }
     }
 
+    private boolean restoreHardwareProfile(String pkg){
+        android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
+        boolean ok=true;
+        java.util.List<RootHardwareController.CpuPolicy> policies=RootHardwareController.discoverCpuPolicies();
+        String[] ids={"little","big","prime"};
+        for(int i=0;i<policies.size()&&i<ids.length;i++){
+            RootHardwareController.CpuPolicy p=policies.get(i);
+            String key="hw_"+ids[i]+"_"+p.path.substring(p.path.lastIndexOf('/')+1);
+            long min=prefs.getLong(pkg+".restore_"+key+"_min",-1);
+            long max=prefs.getLong(pkg+".restore_"+key+"_max",-1);
+            String gov=prefs.getString(pkg+".restore_"+key+"_gov","");
+            if(min>=p.hardwareMinKhz&&max<=p.hardwareMaxKhz&&min<=max){
+                RootHardwareController.Result r=RootHardwareController.setCpuLimits(p.path,min,max);
+                if(!r.ok()){ok=false;Log.e(TAG,"CPU restore failed "+p.path+": "+r.output);}
+            }
+            if(!gov.isEmpty()){
+                RootHardwareController.Result r=RootHardwareController.setCpuGovernor(p.path,gov);
+                if(!r.ok()){ok=false;Log.e(TAG,"CPU governor restore failed "+p.path+": "+r.output);}
+            }
+        }
+        java.util.List<RootHardwareController.GpuDevice> gpus=RootHardwareController.discoverGpuDevices();
+        if(!gpus.isEmpty()){
+            RootHardwareController.GpuDevice gpu=gpus.get(0);
+            String id="restore_gpu_"+gpu.path.hashCode();
+            long min=prefs.getLong(pkg+"."+id+"_min",-1),max=prefs.getLong(pkg+"."+id+"_max",-1);
+            String gov=prefs.getString(pkg+"."+id+"_gov","");
+            if(min>0&&max>=min){
+                RootHardwareController.Result r=RootHardwareController.setGpuLimits(gpu,min,max);
+                if(!r.ok()){ok=false;Log.e(TAG,"GPU restore failed: "+r.output);}
+            }
+            if(!gov.isEmpty()){
+                RootHardwareController.Result r=RootHardwareController.setGpuGovernor(gpu,gov);
+                if(!r.ok()){ok=false;Log.e(TAG,"GPU governor restore failed: "+r.output);}
+            }
+        }
+        return ok;
+    }
+
     private void restoreAndFinish(){
         if(!getSharedPreferences(PREFS,MODE_PRIVATE).getBoolean(gamePackage+".restore_pending",false)){
             stopSelf();return;
@@ -174,7 +212,8 @@ public final class GameProfileMonitorService extends Service {
                 if(!batterySaverRestored)Log.e(TAG,"Battery Saver restore failed: "+power.output);
             }
             final boolean batterySaverRestoredFinal = (batterySaver == 0 || batterySaver == 1) && batterySaverRestored;
-            final boolean success = displayRestored && volumeRestored && batterySaverRestoredFinal;
+            final boolean hardwareRestored=restoreHardwareProfile(gamePackage);
+            final boolean success = displayRestored && volumeRestored && batterySaverRestoredFinal && hardwareRestored;
             if(success){
                 prefs.edit().putBoolean(gamePackage+".restore_pending",false)
                     .putBoolean("monitor_seen_game",false).remove(ACTIVE_PACKAGE).apply();
@@ -184,7 +223,7 @@ public final class GameProfileMonitorService extends Service {
                     Log.i(TAG,"Original game settings restored for "+gamePackage);
                     stopSelf();
                 }else{
-                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestoredFinal);
+                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestoredFinal+" hardwareOk="+hardwareRestored);
                     handler.postDelayed(()->restoreAndFinish(),2500);
                 }
             });
