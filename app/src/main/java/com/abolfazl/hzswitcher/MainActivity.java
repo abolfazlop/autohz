@@ -576,7 +576,10 @@ public class MainActivity extends Activity {
                 commands.add("settings put global airplane_mode_on "+(on?"1":"0"));
                 commands.add("am broadcast -a android.intent.action.AIRPLANE_MODE --ez state "+(on?"true":"false"));
             }else if(key.equals("location"))commands.add("cmd location set-location-enabled "+(on?"true":"false"));
-            else if(key.equals("battery_saver")){\n                String mode=on?"1":"0";\n                commands.add("cmd power set-mode "+mode+" && settings put global low_power "+mode+" && [ \\"$(settings get global low_power)\\" = \\""+mode+"\\" ]");\n            }
+            else if(key.equals("battery_saver")){
+                String mode=on?"1":"0";
+                commands.add("cmd power set-mode "+mode+" && settings put global low_power "+mode+" && [ \"$(settings get global low_power)\" = \""+mode+"\" ]");
+            }
             else if(key.equals("hotspot"))commands.add("cmd connectivity "+(on?"tether start":"tether stop"));
             else if(key.equals("bluetooth"))commands.add("cmd bluetooth_manager "+(on?"enable":"disable"));
             else if(key.equals("dnd"))commands.add("cmd notification set_dnd "+(on?"on":"off"));
@@ -586,7 +589,10 @@ public class MainActivity extends Activity {
                 int target=on?0:Math.round(Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)))*max/100f);
                 commands.add("cmd media_session volume --stream 3 --set "+target);
             }
-            else if(key.equals("auto_brightness"))commands.add("settings put system screen_brightness_mode "+(on?"1":"0")+" && [ \"$(settings get system screen_brightness_mode)\" = \""+(on?"1":"0")+"\" ]");
+            else if(key.equals("auto_brightness")){
+                String mode=on?"1":"0";
+                commands.add("settings put system screen_brightness_mode "+mode+" && [ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]");
+            }
         }
         if(commands.isEmpty())return;
         StringBuilder script=new StringBuilder();
