@@ -3,4 +3,4 @@ name=PulseXt Touch Engine
 version=0.1.0
 versionCode=1
 author=PulseXt
- description=KernelSU module scaffold for device-aware touch control
+description=KernelSU module scaffold for device-aware touch diagnostics
