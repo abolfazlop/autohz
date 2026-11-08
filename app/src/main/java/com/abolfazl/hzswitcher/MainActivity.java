@@ -578,9 +578,12 @@ public class MainActivity extends Activity {
             }else if(key.equals("location"))commands.add("cmd location set-location-enabled "+(on?"true":"false"));
             else if(key.equals("battery_saver")){
                 String mode=on?"1":"0";
-                commands.add("cmd power set-mode "+mode+" && settings put global low_power "+mode+" && [ \"$(settings get global low_power)\" = \""+mode+"\" ]");
-            }
-            else if(key.equals("hotspot"))commands.add("cmd connectivity "+(on?"tether start":"tether stop"));
+                commands.add("cmd power set-mode "+mode);
+                commands.add("settings put global low_power "+mode);
+                commands.add("settings put global low_power_sticky 0");
+                commands.add("[ \"$(settings get global low_power)\" = \""+mode+"\" ]");
+                commands.add("(dumpsys power 2>/dev/null | grep -qi 'mLowPowerModeEnabled="+(on?"true":"false")+"') || [ \"$(settings get global low_power)\" = \""+mode+"\" ]");
+            }else if(key.equals("hotspot"))commands.add("cmd connectivity "+(on?"tether start":"tether stop"));
             else if(key.equals("bluetooth"))commands.add("cmd bluetooth_manager "+(on?"enable":"disable"));
             else if(key.equals("dnd"))commands.add("cmd notification set_dnd "+(on?"on":"off"));
             else if(key.equals("mute")){
@@ -588,20 +591,27 @@ public class MainActivity extends Activity {
                 int max=audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
                 int target=on?0:Math.round(Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)))*max/100f);
                 commands.add("cmd media_session volume --stream 3 --set "+target);
-            }
-            else if(key.equals("auto_brightness")){
+            }else if(key.equals("auto_brightness")){
                 String mode=on?"1":"0";
-                commands.add("settings put system screen_brightness_mode "+mode+" && [ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]");
+                commands.add("settings put system screen_brightness_mode "+mode);
+                commands.add("[ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]");
             }
         }
         if(commands.isEmpty())return;
         StringBuilder script=new StringBuilder();
-        for(String command:commands)script.append(command).append(" || echo PULSEX_FAILED").append("\n");
-        RootHardwareController.Result result=RootHardwareController.run(script.toString(),10000);
+        for(String command:commands)script.append(command).append(" || echo PULSEX_FAILED:").append(command.replace("'","")).append("\n");
+        RootHardwareController.Result result=RootHardwareController.run(script.toString(),15000);
         if(!result.ok()||result.output.contains("PULSEX_FAILED")){
             Toast.makeText(this,"Some game toggles could not be applied. Check root access and Android support.",Toast.LENGTH_LONG).show();
-            android.util.Log.e("PulseXt","Quick toggle apply: "+result.output);
+            android.util.Log.e("PulseXt","Quick toggle apply failed: "+result.output);
+        }else{
+            android.util.Log.i("PulseXt","Quick toggles applied for "+pkg+": "+result.output);
         }
+        RootHardwareController.Result verify=RootHardwareController.run(
+            "echo BATTERY_SAVER:$(settings get global low_power); "+
+            "echo AUTO_BRIGHTNESS:$(settings get system screen_brightness_mode); "+
+            "dumpsys power 2>/dev/null | grep -m1 -i 'mLowPowerModeEnabled' || true",5000);
+        android.util.Log.i("PulseXt","Quick toggle verification: "+verify.output);
     }
 
     private String labelForPackage(String pkg){
