@@ -40,7 +40,7 @@ public final class GameProfileMonitorService extends Service {
                             seenGame=true;
                             getSharedPreferences(PREFS,MODE_PRIVATE).edit()
                                 .putBoolean("monitor_seen_game",true).apply();
-                            new Thread(()->applyGameHardwareProfile(gamePackage),"PulseXtHardwareApply").start();
+                            new Thread(()->{applyGameHardwareProfile(gamePackage);applyGameRefreshProfile(gamePackage);},"PulseXtHardwareApply").start();
                         }
                         handler.postDelayed(this,1000);
                     }else if(seenGame){
@@ -76,6 +76,46 @@ public final class GameProfileMonitorService extends Service {
         handler.removeCallbacks(poll);
         handler.post(poll);
         return START_STICKY;
+    }
+
+    private void applyGameRefreshProfile(String pkg){
+        android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
+        int hz=prefs.getInt(pkg+".refresh",30);
+        if(hz!=30&&hz!=60&&hz!=90&&hz!=120)return;
+        RootHardwareController.Result save=RootHardwareController.run(
+            "echo MIUI:$(settings get secure miui_refresh_rate); echo MIN:$(settings get system min_refresh_rate); echo PEAK:$(settings get system peak_refresh_rate); echo USER:$(settings get system user_refresh_rate)",5000);
+        if(!save.ok())return;
+        long miui=-1,min=-1,peak=-1,user=-1;
+        for(String line:save.output.split("\\r?\\n")){
+            int k=line.indexOf(':');if(k<0)continue;long v=-1;
+            try{v=Long.parseLong(line.substring(k+1).trim());}catch(Exception ignored){}
+            String key=line.substring(0,k);
+            if(key.equals("MIUI"))miui=v;else if(key.equals("MIN"))min=v;else if(key.equals("PEAK"))peak=v;else if(key.equals("USER"))user=v;
+        }
+        prefs.edit().putLong(pkg+".restore_refresh_miui",miui).putLong(pkg+".restore_refresh_min",min)
+            .putLong(pkg+".restore_refresh_peak",peak).putLong(pkg+".restore_refresh_user",user).apply();
+        String script="size=$(wm size 2>/dev/null | awk \"/Physical size/ {print $3}\"); "+
+            "w=$(echo $size | cut -dx -f1); h=$(echo $size | cut -dx -f2); "+
+            "cmd display set-user-preferred-display-mode 0 $w $h "+hz+" && "+
+            "settings put secure miui_refresh_rate "+hz+" && settings put system min_refresh_rate "+hz+
+            " && settings put system peak_refresh_rate "+hz+" && settings put system user_refresh_rate "+hz;
+        RootHardwareController.Result r=RootHardwareController.run(script,7000);
+        Log.i(TAG,"Game refresh "+hz+" Hz exit="+r.exitCode+" output="+r.output);
+    }
+
+    private boolean restoreGameRefreshProfile(String pkg){
+        android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
+        long miui=prefs.getLong(pkg+".restore_refresh_miui",-1),min=prefs.getLong(pkg+".restore_refresh_min",-1);
+        long peak=prefs.getLong(pkg+".restore_refresh_peak",-1),user=prefs.getLong(pkg+".restore_refresh_user",-1);
+        StringBuilder script=new StringBuilder();
+        if(miui<0)script.append("settings delete secure miui_refresh_rate; ");else script.append("settings put secure miui_refresh_rate ").append(miui).append("; ");
+        if(min<0)script.append("settings delete system min_refresh_rate; ");else script.append("settings put system min_refresh_rate ").append(min).append("; ");
+        if(peak<0)script.append("settings delete system peak_refresh_rate; ");else script.append("settings put system peak_refresh_rate ").append(peak).append("; ");
+        if(user<0)script.append("settings delete system user_refresh_rate; ");else script.append("settings put system user_refresh_rate ").append(user).append("; ");
+        script.append("cmd display clear-user-preferred-display-mode 0");
+        RootHardwareController.Result r=RootHardwareController.run(script.toString(),7000);
+        if(!r.ok())Log.e(TAG,"Game refresh restore failed: "+r.output);
+        return r.ok();
     }
 
     /** Apply only controls enabled by the saved game profile, using live kernel bounds. */
@@ -213,7 +253,8 @@ public final class GameProfileMonitorService extends Service {
             }
             final boolean batterySaverRestoredFinal = (batterySaver == 0 || batterySaver == 1) && batterySaverRestored;
             final boolean hardwareRestored=restoreHardwareProfile(gamePackage);
-            final boolean success = displayRestored && volumeRestored && batterySaverRestoredFinal && hardwareRestored;
+            final boolean refreshRestored=restoreGameRefreshProfile(gamePackage);
+            final boolean success = displayRestored && volumeRestored && batterySaverRestoredFinal && hardwareRestored && refreshRestored;
             if(success){
                 prefs.edit().putBoolean(gamePackage+".restore_pending",false)
                     .putBoolean("monitor_seen_game",false).remove(ACTIVE_PACKAGE).apply();
@@ -223,7 +264,7 @@ public final class GameProfileMonitorService extends Service {
                     Log.i(TAG,"Original game settings restored for "+gamePackage);
                     stopSelf();
                 }else{
-                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestoredFinal+" hardwareOk="+hardwareRestored);
+                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestoredFinal+" hardwareOk="+hardwareRestored+" refreshOk="+refreshRestored);
                     handler.postDelayed(()->restoreAndFinish(),2500);
                 }
             });
