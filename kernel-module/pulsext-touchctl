@@ -1,0 +1,38 @@
+#!/system/bin/sh
+# PulseXt Touch Engine control interface. Probe is read-only by design.
+MODDIR=${0%/*}
+cmd=${1:-status}
+case "$cmd" in
+  probe|status)
+    echo "engine=PulseXtTouchEngine"
+    echo "backend=diagnostic-only"
+    echo "root=$(id -u)"
+    echo "soc=$(getprop ro.soc.model)"
+    echo "manufacturer=$(getprop ro.product.manufacturer)"
+    echo "device=$(getprop ro.product.device)"
+    found=0
+    for p in /sys/class/input/* /sys/devices/platform/*; do
+      [ -e "$p" ] || continue
+      n=$(basename "$p")
+      case "$n" in *touch*|*goodix*|*focal*|*fts*|*synaptics*|*novatek*)
+        echo "candidate=$p"; found=1;;
+      esac
+    done
+    [ "$found" = 1 ] || echo "candidate=none"
+    echo "apply_supported=false"
+    echo "reason=No verified vendor adapter or native input-resampler is bundled for this device"
+    ;;
+  apply)
+    rate=${2:-}
+    case "$rate" in 0|240|480|1000) ;; *) echo "error=invalid_rate"; exit 2;; esac
+    echo "error=unsupported_backend"
+    echo "requested=$rate"
+    echo "message=Refusing to fake touch rate; a verified device-specific backend is required"
+    exit 3
+    ;;
+  restore)
+    echo "error=no_active_touch_backend"
+    exit 3
+    ;;
+  *) echo "usage: pulsext-touchctl {probe|status|apply 0|240|480|1000|restore}"; exit 2;;
+esac
