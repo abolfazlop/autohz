@@ -211,19 +211,22 @@ public final class GameProfileMonitorService extends Service {
         if(rate!=0&&rate!=240&&rate!=480&&rate!=1000)return false;
         String module="/data/adb/modules/pulsext_touch_engine/pulsext-touchctl";
         String operation=rate==0?"restore":"apply "+rate;
-        String command="[ -x "+module+" ] && "+module+" "+operation;
-        RootHardwareController.Result result=RootHardwareController.run(command,10000);
-        boolean ok=result.ok()&&result.output.contains("verified=true");
-        Log.i(TAG,"KernelSU touch operation="+operation+" verified="+ok+" output="+result.output);
+        RootHardwareController.Result result=RootHardwareController.run(
+            "[ -x "+module+" ] && "+module+" "+operation,15000);
+        boolean ok=result.ok()&&(rate==0
+            ?result.output.contains("touch=-1")&&result.output.contains("touch_ack=-1")
+            :result.output.contains("touch_ack=1")&&result.output.contains("touch="+(rate==240?1:rate==480?2:3))&&
+                (rate!=1000||result.output.contains("touch_resampler_ready=1000")));
+        Log.i(TAG,"Rodin native touch operation="+operation+" verified="+ok+" output="+result.output);
         return ok;
     }
 
     private boolean restoreGameTouchProfile(String pkg){
         String module="/data/adb/modules/pulsext_touch_engine/pulsext-touchctl";
         RootHardwareController.Result result=RootHardwareController.run(
-            "[ -x "+module+" ] && "+module+" restore",7000);
-        boolean ok=result.ok();
-        Log.i(TAG,"KernelSU touch restore verified="+ok+" output="+result.output);
+            "[ -x "+module+" ] && "+module+" restore",15000);
+        boolean ok=result.ok()&&result.output.contains("touch=-1")&&result.output.contains("touch_ack=-1");
+        Log.i(TAG,"Rodin native touch restore verified="+ok+" output="+result.output);
         return ok;
     }
 
