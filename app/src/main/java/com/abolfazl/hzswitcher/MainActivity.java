@@ -233,81 +233,134 @@ public class MainActivity extends Activity {
     private TextView selectedGameTitle, gameProfileStatus;
     private final Map<String,String> gameLabels = new LinkedHashMap<>();
 
+
+    private LinearLayout gameListContainer;
+    private TextView gameProfileStatus;
+    private String selectedGamePackage, selectedGameLabel;
+    private final Map<String,String> gameLabels = new LinkedHashMap<>();
+    private android.content.SharedPreferences gamePrefs;
+
     private void showGameProfiles(){
+        gamePrefs=getSharedPreferences("game_profiles",MODE_PRIVATE);
         LinearLayout c=pageContent();
-        addLabel(c,"Choose a game",18,TEXT,true,6);
-        addLabel(c,"Select an installed game, then choose a system game mode.",13,MUTED,false,6);
-        LinearLayout selected=column(); pad(selected,16,16,16,16);
-        selected.setBackground(shape(0xFF211A2D,20,0xFF493765));
-        LinearLayout.LayoutParams selp=new LinearLayout.LayoutParams(-1,-2); selp.topMargin=dp(16); c.addView(selected,selp);
-        selectedGameTitle=text("No game selected",17,TEXT,true); selected.addView(selectedGameTitle);
-        gameProfileStatus=text("Select a game below to configure its profile.",12,MUTED,false);
-        LinearLayout.LayoutParams stp=new LinearLayout.LayoutParams(-1,-2); stp.topMargin=dp(7); selected.addView(gameProfileStatus,stp);
-
-        addLabel(c,"PERFORMANCE MODE",10,MUTED,true,20);
-        LinearLayout modes=row(); LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(52)); mp.topMargin=dp(9); c.addView(modes,mp);
-        addGameModeButton(modes,"Battery","battery");
-        addGameModeButton(modes,"Standard","standard");
-        addGameModeButton(modes,"Performance","performance");
-
-        Button launch=new Button(this); launch.setText("Launch selected game"); launch.setAllCaps(false);
-        launch.setTextColor(TEXT); launch.setBackground(shape(0xFF49336A,16,0));
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(50)); lp.topMargin=dp(10); c.addView(launch,lp);
-        launch.setOnClickListener(v->{
-            if(selectedGamePackage==null){gameProfileStatus.setText("Choose a game first.");return;}
-            try{android.content.Intent i=getPackageManager().getLaunchIntentForPackage(selectedGamePackage);
-                if(i==null)throw new IllegalStateException("No launch activity is available.");
-                startActivity(i);
-            }catch(Exception e){gameProfileStatus.setText("Launch failed: "+e.getMessage());}
-        });
-
-        addLabel(c,"INSTALLED GAMES",10,MUTED,true,22);
-        gameListContainer=column(); LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(-1,-2); glp.topMargin=dp(10); c.addView(gameListContainer,glp);
-        loadInstalledGames();
+        addLabel(c,"Your games",18,TEXT,true,6);
+        addLabel(c,"Choose a game to create its own settings profile.",13,MUTED,false,6);
+        gameListContainer=column();
+        LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(-1,-2); glp.topMargin=dp(16); c.addView(gameListContainer,glp);
         showPage("Game Profile",c);
+        loadInstalledGamesAsync();
     }
 
-    private void addGameModeButton(LinearLayout parent,String label,String mode){
-        Button b=new Button(this); b.setText(label); b.setAllCaps(false); b.setTextSize(11);
-        b.setTextColor(TEXT); b.setBackground(shape(PANEL2,14,0xFF40364F));
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1); p.leftMargin=dp(3); p.rightMargin=dp(3); parent.addView(b,p);
-        b.setOnClickListener(v->applyGameMode(mode));
-    }
-
-    private void loadInstalledGames(){
-        if(gameListContainer==null)return;
-        gameListContainer.removeAllViews(); gameLabels.clear();
-        try{
+    private void loadInstalledGamesAsync(){
+        gameListContainer.removeAllViews();
+        TextView loading=text("Loading installed apps…",13,MUTED,false);
+        pad(loading,16,18,16,18); gameListContainer.addView(loading);
+        executor.execute(()->{
+            ArrayList<android.content.pm.ApplicationInfo> games=new ArrayList<>();
             android.content.pm.PackageManager pm=getPackageManager();
-            List<android.content.pm.ApplicationInfo> apps=pm.getInstalledApplications(0);
-            Collections.sort(apps,(a,b)->pm.getApplicationLabel(a).toString().compareToIgnoreCase(pm.getApplicationLabel(b).toString()));
-            for(android.content.pm.ApplicationInfo app:apps){
-                if(app.packageName.equals(getPackageName()) || app.category!=android.content.pm.ApplicationInfo.CATEGORY_GAME)continue;
-                if(pm.getLaunchIntentForPackage(app.packageName)==null)continue;
-                String label=pm.getApplicationLabel(app).toString(); gameLabels.put(app.packageName,label);
-                addGameRow(label,app.packageName,pm.getApplicationIcon(app));
-            }
-        }catch(Exception e){gameProfileStatus.setText("Could not read installed games: "+e.getMessage());}
-        if(gameLabels.isEmpty()){
-            TextView empty=text("No apps are marked as games by Android. You can still use system Game Space for titles not listed here.",13,MUTED,false);
-            pad(empty,14,14,14,14); empty.setBackground(shape(PANEL,16,0)); gameListContainer.addView(empty);
-        }
+            try{
+                Intent query=new Intent(Intent.ACTION_MAIN,null); query.addCategory(Intent.CATEGORY_LAUNCHER);
+                List<android.content.pm.ResolveInfo> launchers=pm.queryIntentActivities(query,0);
+                HashSet<String> seen=new HashSet<>();
+                for(android.content.pm.ResolveInfo ri:launchers){
+                    if(ri.activityInfo==null)continue;
+                    String pkg=ri.activityInfo.packageName;
+                    if(pkg.equals(getPackageName())||!seen.add(pkg))continue;
+                    android.content.pm.ApplicationInfo ai=pm.getApplicationInfo(pkg,0);
+                    if(ai.enabled)games.add(ai);
+                }
+                Collections.sort(games,(a,b)->pm.getApplicationLabel(a).toString().compareToIgnoreCase(pm.getApplicationLabel(b).toString()));
+            }catch(Exception ignored){}
+            runOnUiThread(()->{
+                if(gameListContainer==null||!"Game Profile".equals(currentPage))return;
+                gameListContainer.removeAllViews(); gameLabels.clear();
+                for(android.content.pm.ApplicationInfo ai:games){
+                    String label=pm.getApplicationLabel(ai).toString();
+                    gameLabels.put(ai.packageName,label);
+                    addGameRow(label,ai.packageName,pm.getApplicationIcon(ai));
+                }
+                if(games.isEmpty()){
+                    TextView empty=text("No launchable apps found.",13,MUTED,false);
+                    pad(empty,16,18,16,18); gameListContainer.addView(empty);
+                }
+            });
+        });
     }
 
     private void addGameRow(String label,String pkg,android.graphics.drawable.Drawable appIcon){
         LinearLayout item=row(); pad(item,12,10,12,10); item.setBackground(shape(PANEL,16,0xFF292B30));
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(66)); p.bottomMargin=dp(8); gameListContainer.addView(item,p);
-        ImageView image=new ImageView(this); image.setImageDrawable(appIcon); item.addView(image,new LinearLayout.LayoutParams(dp(38),dp(38)));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(68)); p.bottomMargin=dp(8); gameListContainer.addView(item,p);
+        ImageView image=new ImageView(this); image.setImageDrawable(appIcon); item.addView(image,new LinearLayout.LayoutParams(dp(40),dp(40)));
         LinearLayout labels=column(); LinearLayout.LayoutParams l=new LinearLayout.LayoutParams(0,-2,1); l.leftMargin=dp(12); item.addView(labels,l);
-        labels.addView(text(label,14,TEXT,true)); TextView packageText=text(pkg,10,MUTED,false); labels.addView(packageText);
-        TextView tick=text("›",25,ACCENT,false); item.addView(tick);
-        item.setOnClickListener(v->{
-            selectedGamePackage=pkg; selectedGameLabel=label;
-            getSharedPreferences("game_profiles",MODE_PRIVATE).edit().putString("selected_package",pkg).apply();
-            selectedGameTitle.setText(label);
-            gameProfileStatus.setText("Selected: "+pkg+". Choose a mode to apply it.");
-            for(int i=0;i<gameListContainer.getChildCount();i++)gameListContainer.getChildAt(i).setBackground(shape(PANEL,16,0xFF292B30));
-            item.setBackground(shape(0xFF302443,16,ACCENT));
+        labels.addView(text(label,14,TEXT,true)); labels.addView(text(pkg,10,MUTED,false));
+        item.addView(new AppIcon("chevron",ACCENT),new LinearLayout.LayoutParams(dp(20),dp(20)));
+        item.setOnClickListener(v->{selectedGamePackage=pkg;selectedGameLabel=label;showGameEditor(pkg,label);});
+    }
+
+    private String profileKey(String pkg,String key){return pkg+"."+key;}
+    private void showGameEditor(String pkg,String label){
+        selectedGamePackage=pkg;selectedGameLabel=label;
+        LinearLayout c=pageContent();
+        LinearLayout hero=column();pad(hero,16,16,16,16);hero.setBackground(shape(0xFF211A2D,20,0xFF493765));
+        TextView app=text(label,20,TEXT,true);hero.addView(app);
+        TextView packageName=text(pkg,10,MUTED,false);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,-2);pp.topMargin=dp(5);hero.addView(packageName,pp);
+        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.bottomMargin=dp(14);c.addView(hero,hp);
+
+        android.widget.Switch auto=new android.widget.Switch(this);auto.setText("Auto Apply Profile");auto.setTextColor(TEXT);auto.setTextSize(15);
+        auto.setChecked(gamePrefs.getBoolean(profileKey(pkg,"auto"),false));c.addView(auto);
+        TextView autoHint=text("Apply this game's saved settings when it becomes the foreground app. Requires the background profile monitor.",11,MUTED,false);
+        LinearLayout.LayoutParams ah=new LinearLayout.LayoutParams(-1,-2);ah.topMargin=dp(4);c.addView(autoHint,ah);
+        auto.setOnCheckedChangeListener((b,checked)->gamePrefs.edit().putBoolean(profileKey(pkg,"auto"),checked).apply());
+
+        addLabel(c,"DISPLAY & SOUND",10,MUTED,true,22);
+        addProfileSlider(c,pkg,"Brightness","brightness",0,100,gamePrefs.getInt(profileKey(pkg,"brightness"),70),"%");
+        addProfileSlider(c,pkg,"Media volume","volume",0,100,gamePrefs.getInt(profileKey(pkg,"volume"),70),"%");
+
+        addLabel(c,"REFRESH RATE",10,MUTED,true,20);
+        LinearLayout rates=row();LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(48));rp.topMargin=dp(8);c.addView(rates,rp);
+        int savedRate=gamePrefs.getInt(profileKey(pkg,"refresh"),120);
+        for(int hz:new int[]{30,60,90,120}){
+            final int value=hz;Button b=new Button(this);b.setText(hz+" Hz");b.setAllCaps(false);b.setTextSize(11);b.setTextColor(TEXT);
+            b.setBackground(shape(savedRate==hz?0xFF49336A:PANEL2,13,savedRate==hz?ACCENT:0));
+            LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);rates.addView(b,bp);
+            b.setOnClickListener(v->{gamePrefs.edit().putInt(profileKey(pkg,"refresh"),value).apply();showGameEditor(pkg,label);});
+        }
+
+        addLabel(c,"PERFORMANCE",10,MUTED,true,20);
+        String mode=gamePrefs.getString(profileKey(pkg,"mode"),"standard");
+        LinearLayout modes=row();LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(48));mp.topMargin=dp(8);c.addView(modes,mp);
+        for(String m:new String[]{"battery","standard","performance"}){
+            Button b=new Button(this);b.setText(m.substring(0,1).toUpperCase(Locale.ROOT)+m.substring(1));b.setAllCaps(false);b.setTextSize(10);b.setTextColor(TEXT);
+            b.setBackground(shape(mode.equals(m)?0xFF49336A:PANEL2,13,mode.equals(m)?ACCENT:0));
+            LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);modes.addView(b,bp);
+            b.setOnClickListener(v->{gamePrefs.edit().putString(profileKey(pkg,"mode"),m).apply();showGameEditor(pkg,label);});
+        }
+
+        addLabel(c,"HARDWARE CONTROLS",10,MUTED,true,22);
+        addProfileSlider(c,pkg,"CPU performance limit","cpu_limit",0,100,gamePrefs.getInt(profileKey(pkg,"cpu_limit"),100),"%");
+        addProfileSlider(c,pkg,"GPU performance limit","gpu_limit",0,100,gamePrefs.getInt(profileKey(pkg,"gpu_limit"),100),"%");
+        addProfileSlider(c,pkg,"Touch sampling target","touch_rate",60,480,gamePrefs.getInt(profileKey(pkg,"touch_rate"),240)," Hz");
+        TextView note=text("CPU, GPU and touch controls are saved per game. Applying exact hardware frequencies requires a device-supported Rodin backend; unsupported controls must not be reported as applied.",11,MUTED,false);
+        LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,-2);np.topMargin=dp(10);c.addView(note,np);
+
+        Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
+        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
+        showPage("Game Profile",c);
+    }
+
+    private void addProfileSlider(LinearLayout parent,String pkg,String title,String key,int min,int max,int value,String suffix){
+        LinearLayout card=column();pad(card,14,12,14,12);card.setBackground(shape(PANEL,16,0xFF292B30));
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=dp(8);parent.addView(card,cp);
+        LinearLayout header=row();header.addView(text(title,13,TEXT,true),new LinearLayout.LayoutParams(0,-2,1));
+        TextView amount=text(value+suffix,12,ACCENT,true);header.addView(amount);card.addView(header);
+        SeekBar slider=new SeekBar(this);slider.setMax(max-min);slider.setProgress(Math.max(0,Math.min(max-min,value-min)));
+        if(android.os.Build.VERSION.SDK_INT>=21){slider.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));slider.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));}
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=dp(8);card.addView(slider,sp);
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar s,int progress,boolean fromUser){amount.setText((progress+min)+suffix);}
+            public void onStartTrackingTouch(SeekBar s){}
+            public void onStopTrackingTouch(SeekBar s){gamePrefs.edit().putInt(profileKey(pkg,key),s.getProgress()+min).apply();}
         });
     }
 
