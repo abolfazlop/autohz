@@ -398,7 +398,7 @@ public class MainActivity extends Activity {
 
         Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
-        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");applyGameQuickToggles(pkg);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
+        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");applyGameQuickToggles(pkg);applyGameDisplaySound(pkg);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
     }
 
@@ -436,6 +436,19 @@ public class MainActivity extends Activity {
                 });
             }
         }
+    }
+
+    private void applyGameDisplaySound(String pkg){
+        int brightness=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"brightness"),70)));
+        int volume=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)));
+        int brightnessLevel=Math.round(brightness*255f/100f);
+        // Android media stream volume is normalized using the device's current music-stream maximum.
+        RootHardwareController.Result r=RootHardwareController.run(
+            "settings put system screen_brightness "+brightnessLevel+
+            " && max=\\$(cmd media_session volume --stream 3 --get 2>/dev/null | sed -n 's/.*max=\\([0-9]*\\).*/\\1/p'); "+
+            "[ -n \\"\\$max\\" ] || max=15; level=$((("+volume+"*max+50)/100)); "+
+            "cmd media_session volume --stream 3 --set \\"\\$level\\" ",8000);
+        if(!r.ok())android.util.Log.e("PulseXt","Display/sound apply failed: "+r.output);
     }
 
     private void applyGameQuickToggles(String pkg){
@@ -515,61 +528,24 @@ public class MainActivity extends Activity {
     }
 
     private void addClusterFrequency(LinearLayout parent,String pkg,String cluster,String label,String key,int min,int max,int fallback,boolean manualAllowed){
-        LinearLayout item=column();
-        LinearLayout.LayoutParams itemLp=new LinearLayout.LayoutParams(-1,-2);
-        itemLp.topMargin=dp(10);parent.addView(item,itemLp);
-
-        LinearLayout header=row();
-        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        LinearLayout item=column();LinearLayout.LayoutParams ilp=new LinearLayout.LayoutParams(-1,-2);ilp.topMargin=dp(10);parent.addView(item,ilp);
+        LinearLayout header=row();header.setGravity(android.view.Gravity.CENTER_VERTICAL);
         header.addView(text(label,12,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
         String prefKey=cluster+"_"+key+"_enabled";
-        Switch enabled=new Switch(this);
-        enabled.setChecked(gamePrefs.getBoolean(profileKey(pkg,prefKey),false));
-        enabled.setEnabled(manualAllowed);
-        header.addView(enabled);item.addView(header);
-
+        Switch enabled=new Switch(this);enabled.setChecked(gamePrefs.getBoolean(profileKey(pkg,prefKey),false));enabled.setEnabled(manualAllowed);header.addView(enabled);item.addView(header);
         String valueKey=cluster+"_"+key+"_mhz";
         int initial=gamePrefs.getInt(profileKey(pkg,valueKey),fallback);
-        TextView current=text(initial+" MHz",13,ACCENT,true);
-        current.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        Button choose=new Button(this);
-        choose.setText("Choose frequency  ›");
-        choose.setAllCaps(false);choose.setTextSize(12);choose.setTextColor(TEXT);
-        choose.setBackground(shape(0xFF49336A,12,0xFF8F65D8));
-        LinearLayout.LayoutParams chooseLp=new LinearLayout.LayoutParams(-1,dp(46));
-        chooseLp.topMargin=dp(7);item.addView(choose,chooseLp);
-        LinearLayout valueRow=row();valueRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams valueLp=new LinearLayout.LayoutParams(-1,-2);
-        valueLp.topMargin=dp(5);item.addView(valueRow,valueLp);
-        valueRow.addView(text("Selected frequency",10,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));
-        valueRow.addView(current);
-
-        boolean active=manualAllowed&&enabled.isChecked();
-        choose.setEnabled(active);current.setAlpha(active?1f:0.55f);
-        enabled.setOnCheckedChangeListener((button,checked)->{
-            gamePrefs.edit().putBoolean(profileKey(pkg,prefKey),checked).apply();
-            boolean canEdit=manualAllowed&&checked;
-            choose.setEnabled(canEdit);current.setAlpha(canEdit?1f:0.55f);
-        });
-        choose.setOnClickListener(v->{
-            if(!manualAllowed||!enabled.isChecked())return;
-            android.widget.NumberPicker picker=new android.widget.NumberPicker(this);
-            picker.setMinValue(min/50);
-            picker.setMaxValue(max/50);
-            picker.setValue(Math.max(min/50,Math.min(max/50,initial/50)));
-            picker.setWrapSelectorWheel(false);
-            LinearLayout dialogBody=column();pad(dialogBody,18,12,18,8);
-            dialogBody.addView(text("Select "+label,15,TEXT,true));
-            dialogBody.addView(text("Choose a value in MHz",11,MUTED,false));
-            dialogBody.addView(picker,new LinearLayout.LayoutParams(-1,dp(150)));
-            new android.app.AlertDialog.Builder(this)
-                .setView(dialogBody)
-                .setNegativeButton("Cancel",null)
-                .setPositiveButton("Apply",(dialog,which)->{
-                    int selected=picker.getValue()*50;
-                    gamePrefs.edit().putInt(profileKey(pkg,valueKey),selected).apply();
-                    current.setText(selected+" MHz");
-                }).show();
+        int safeMin=Math.max(1,min),safeMax=Math.max(safeMin,max);
+        TextView current=text(initial+" MHz",12,ACCENT,true);item.addView(current);
+        SeekBar slider=new SeekBar(this);slider.setMax(Math.max(1,(safeMax-safeMin)/50));slider.setProgress(Math.max(0,Math.min(slider.getMax(),(initial-safeMin)/50)));
+        if(android.os.Build.VERSION.SDK_INT>=21){slider.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));slider.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));}
+        item.addView(slider,new LinearLayout.LayoutParams(-1,-2));
+        boolean active=manualAllowed&&enabled.isChecked();slider.setEnabled(active);slider.setAlpha(active?1f:0.5f);
+        enabled.setOnCheckedChangeListener((v,checked)->{gamePrefs.edit().putBoolean(profileKey(pkg,prefKey),checked).apply();slider.setEnabled(manualAllowed&&checked);slider.setAlpha(checked?1f:0.5f);});
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){current.setText((safeMin+progress*50)+" MHz");}
+            public void onStartTrackingTouch(SeekBar bar){}
+            public void onStopTrackingTouch(SeekBar bar){gamePrefs.edit().putInt(profileKey(pkg,valueKey),safeMin+bar.getProgress()*50).apply();}
         });
     }
 
