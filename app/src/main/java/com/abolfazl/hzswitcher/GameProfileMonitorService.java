@@ -112,9 +112,9 @@ public final class GameProfileMonitorService extends Service {
             boolean batterySaverRestored=false;
             if(batterySaver==0||batterySaver==1){
                 String low=batterySaver==1?"1":"0";
-                String restorePowerScript="cmd power set-mode "+low+" && settings put global low_power "+low;
-                if(batterySaver==0)restorePowerScript+=" && settings put global low_power_sticky 0";
-                restorePowerScript+=" && [ \"$(settings get global low_power)\" = \""+low+"\" ] && dumpsys power 2>/dev/null | grep -qi 'mLowPowerModeEnabled="+(batterySaver==1?"true":"false")+"'";
+                String restorePowerScript="cmd power set-mode "+low+" && sleep 1 && settings put global low_power "+low;
+                if(batterySaver==0)restorePowerScript+=" && settings put global low_power_sticky 0 && settings put global low_power 0";
+                restorePowerScript+=" && sleep 1 && [ \"$(settings get global low_power)\" = \""+low+"\" ]";
                 RootHardwareController.Result power=RootHardwareController.run(restorePowerScript,7000);
                 batterySaverRestored=power.ok();
                 if(!batterySaverRestored)Log.e(TAG,"Battery Saver restore failed: "+power.output);
