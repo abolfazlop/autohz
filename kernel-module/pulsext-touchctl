@@ -1,75 +1,66 @@
 #!/system/bin/sh
-# PulseXt Touch Engine: root control plane. Vendor adapters are opt-in and device-scoped.
-MODDIR=\${0%/*}
-STATE=/data/adb/pulsext-touch
-mkdir -p "$STATE"
-chmod 0700 "$STATE"
-cmd=\${1:-status}
-rate=\${2:-}
-device="$(getprop ro.product.device)"
-fingerprint="$(getprop ro.build.fingerprint)"
-soc="$(getprop ro.soc.model)"
-manufacturer="$(getprop ro.product.manufacturer)"
-adapter="$MODDIR/adapters/\${device}.sh"
+MODDIR=${0%/*}
+CTL="$MODDIR/bin/rodin_ctl"
+cmd=${1:-status}
+rate=${2:-}
+DEVICE="$(getprop ro.product.device)"
+BASE=/data/adb/pulsext-touch
+STATE="$BASE/rodin-state"
 
-probe() {
-  echo "engine=PulseXtTouchEngine"
-  echo "engine_version=0.2.0"
-  echo "backend=vendor-adapter-dispatch"
-  echo "root=$(id -u)"
-  echo "manufacturer=$manufacturer"
-  echo "device=$device"
-  echo "soc=$soc"
-  echo "fingerprint=$fingerprint"
-  found=0
-  for d in /sys/class/input/input*; do
-    [ -d "$d" ] || continue
-    name="$(cat "$d/name" 2>/dev/null)"
-    case "$(echo "$name" | tr '[:upper:]' '[:lower:]')" in
-      *touch*|*goodix*|*focal*|*fts*|*synaptics*|*novatek*|*ilitek*)
-        echo "input_device=$(basename "$d"):$name"
-        found=1 ;;
-    esac
-  done
-  [ "$found" = 1 ] || echo "input_device=not_identified"
-  if [ -x "$adapter" ]; then
-    echo "adapter=present"
-    "$adapter" probe 2>/dev/null | sed 's/^/adapter_/'
-  else
-    echo "adapter=missing"
-    echo "apply_supported=false"
-    echo "reason=no_verified_adapter_for_device"
-  fi
+if [ "$DEVICE" != "rodin" ]; then
+  echo "error=unsupported_device"
+  echo "device=$DEVICE"
+  echo "supported_device=rodin"
+  exit 3
+fi
+if [ ! -x "$CTL" ]; then echo "error=rodin_ctl_missing"; exit 4; fi
+
+snapshot() {
+  "$CTL" "GET snapshot" 2>&1
 }
 
 case "$cmd" in
-  probe|status) probe ;;
+  probe|status)
+    echo "engine=PulseXtTouchEngine"
+    echo "backend=Rodin-Essential-v1.18.5"
+    echo "device=$DEVICE"
+    if pidof rodin_daemon >/dev/null 2>&1; then echo "daemon=running"; else echo "daemon=stopped"; fi
+    snapshot
+    ;;
   apply)
-    case "$rate" in 0|240|480|1000) ;; *) echo "error=invalid_rate"; exit 2;; esac
-    if [ ! -x "$adapter" ]; then
-      echo "error=unsupported_backend"
-      echo "requested=$rate"
-      echo "device=$device"
-      echo "message=No verified vendor adapter is installed for this exact device"
-      exit 3
+    case "$rate" in
+      240) profile=1 ;;
+      480) profile=2 ;;
+      1000) profile=3 ;;
+      0) profile=0 ;;
+      *) echo "error=invalid_rate"; exit 2 ;;
+    esac
+    response="$("$CTL" "SET touch $profile" 2>&1)"
+    echo "$response"
+    echo "$response" | grep -q '^OK applied$' || exit 5
+    live="$(snapshot)"
+    echo "$live"
+    echo "$live" | grep -q "^touch=$profile$" || { echo "error=touch_profile_readback_mismatch"; exit 6; }
+    if [ "$profile" = 3 ]; then
+      echo "$live" | grep -q '^touch_resampler_ready=1000$' || { echo "error=1000hz_resampler_not_ready"; exit 7; }
+      echo "$live" | grep -q '^touch_ack=1$' || { echo "error=touch_apply_not_acknowledged"; exit 8; }
+    elif [ "$profile" = 0 ]; then
+      echo "$live" | grep -q '^touch_ack=-1$' || { echo "error=touch_restore_not_acknowledged"; exit 8; }
+    else
+      echo "$live" | grep -q '^touch_ack=1$' || { echo "error=touch_apply_not_acknowledged"; exit 8; }
     fi
-    result="$("$adapter" apply "$rate" 2>&1)"
-    code=$?
-    echo "$result"
-    [ "$code" -eq 0 ] || exit "$code"
-    echo "$result" | grep -q '^verified=true$' || { echo "error=adapter_did_not_verify_readback"; exit 4; }
-    printf '%s\n' "$rate" > "$STATE/active_rate"
-    printf '%s\n' "$device" > "$STATE/active_device"
-    chmod 0600 "$STATE/active_rate" "$STATE/active_device"
     ;;
   restore)
-    if [ ! -x "$adapter" ]; then echo "error=no_verified_adapter"; exit 3; fi
-    result="$("$adapter" restore 2>&1)"
-    code=$?
-    echo "$result"
-    [ "$code" -eq 0 ] || exit "$code"
-    echo "$result" | grep -q '^verified=true$' || { echo "error=restore_not_verified"; exit 4; }
-    rm -f "$STATE/active_rate" "$STATE/active_device"
+    response="$("$CTL" "SET touch 0" 2>&1)"
+    echo "$response"
+    echo "$response" | grep -q '^OK applied$' || exit 5
+    live="$(snapshot)"
+    echo "$live"
+    echo "$live" | grep -q '^touch=-1$' || { echo "error=touch_restore_state_mismatch"; exit 6; }
+    echo "$live" | grep -q '^touch_ack=-1$' || { echo "error=touch_restore_not_acknowledged"; exit 8; }
     ;;
-  *) echo "usage: pulsext-touchctl {probe|status|apply 0|240|480|1000|restore}"; exit 2 ;;
+  *)
+    echo "usage: pulsext-touchctl {probe|status|apply 240|480|1000|restore}"
+    exit 2
+    ;;
 esac
