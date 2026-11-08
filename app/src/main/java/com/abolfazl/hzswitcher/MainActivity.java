@@ -830,7 +830,9 @@ public class MainActivity extends Activity {
     }
 
     private void showAbout(){
-        LinearLayout c=pageContent(); TextView logo=text("PulseXt",42,TEXT,false); logo.setGravity(Gravity.CENTER);
+        LinearLayout c=pageContent();
+        c.setBackgroundResource(R.drawable.about_background);
+        TextView logo=text("PulseXt",42,TEXT,false); logo.setGravity(Gravity.CENTER);
         c.addView(logo,new LinearLayout.LayoutParams(-1,dp(110)));
         TextView desc=text("A versatile toolkit to customize, optimize, and manage your Android device.",15,MUTED,false); desc.setGravity(Gravity.CENTER); c.addView(desc);
         TextView version=text("Version 1.0.0  •  Built for Android / HyperOS",13,MUTED,false); version.setGravity(Gravity.CENTER); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2); vp.topMargin=dp(18); c.addView(version,vp);
