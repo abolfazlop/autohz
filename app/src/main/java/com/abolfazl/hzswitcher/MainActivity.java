@@ -17,8 +17,8 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
-    private static final int BG=0xFF090D14, PANEL=0xFF141C28, PANEL2=0xFF1B2736;
-    private static final int TEXT=0xFFF3F6FA, MUTED=0xFF98A7B8, ACCENT=0xFF9BE7D0;
+    private static final int BG=0xFF08090B, PANEL=0xFF191A1D, PANEL2=0xFF24262A;
+    private static final int TEXT=0xFFF5F5F7, MUTED=0xFF9A9CA3, ACCENT=0xFFB7F36B;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private android.content.SharedPreferences prefs;
     private TextView rootLabel, rootDetail, rateValue, rateCaption, resultLabel, deviceLabel, brightnessValue;
@@ -73,77 +73,104 @@ public class MainActivity extends Activity {
     private String currentPage="Home";
 
     private void buildUi() {
-        appRoot=column(); appRoot.setBackgroundColor(0xFF000000);
-        LinearLayout top=row(); pad(top,24,18,24,12);
-        TextView appName=text("AutoHz",14,TEXT,true);
+        appRoot=column(); appRoot.setBackgroundColor(BG);
+        appRoot.setClipToPadding(false);
+        LinearLayout top=row(); pad(top,22,14,22,10);
+        TextView appName=text("AUTOHZ",13,ACCENT,true);
+        appName.setLetterSpacing(0.14f);
         top.addView(appName,new LinearLayout.LayoutParams(0,-2,1));
-        TextView topIcon=text("☼   ⚙",22,0xFFBBBBBB,false); top.addView(topIcon);
-        topIcon.setOnClickListener(v->showSettings());
-        appRoot.addView(top,new LinearLayout.LayoutParams(-1,-2));
+        TextView live=text("●  DISPLAY CONTROL",10,MUTED,true);
+        live.setLetterSpacing(0.08f); top.addView(live);
+        appRoot.addView(top,new LinearLayout.LayoutParams(-1,dp(46)));
         pageHost=column();
-        LinearLayout.LayoutParams hostParams=new LinearLayout.LayoutParams(-1,0,1);
-        appRoot.addView(pageHost,hostParams);
-        bottomBar=row(); bottomBar.setBackgroundColor(0xFF101010); pad(bottomBar,12,8,12,8);
-        bottomBar.setClipToPadding(false);
-        bottomBar.setElevation(dp(4));
-        appRoot.addView(bottomBar,new LinearLayout.LayoutParams(-1,dp(68)));
+        appRoot.addView(pageHost,new LinearLayout.LayoutParams(-1,0,1));
+        bottomBar=row(); bottomBar.setBackgroundColor(0xFF101114);
+        bottomBar.setPadding(dp(10),dp(8),dp(10),dp(8));
+        bottomBar.setElevation(dp(10)); bottomBar.setClipToPadding(false);
+        appRoot.addView(bottomBar,new LinearLayout.LayoutParams(-1,dp(72)));
         setContentView(appRoot); showHome();
     }
 
     private void showPage(String title, View content){
         currentPage=title; pageHost.removeAllViews();
-        LinearLayout page=column(); pad(page,22,18,22,24);
+        LinearLayout page=column(); pad(page,20,12,20,20);
         LinearLayout heading=row();
         if(!title.equals("Home")&&!title.equals("Settings")&&!title.equals("About")){
             TextView back=text("‹",34,TEXT,false); back.setGravity(Gravity.CENTER);
             heading.addView(back,new LinearLayout.LayoutParams(dp(42),dp(48)));
             back.setOnClickListener(v->showHome());
         }
-        TextView name=text(title,32,TEXT,false);
+        TextView name=text(title,30,TEXT,false);
+        name.setTypeface(Typeface.create("sans-serif-light",Typeface.NORMAL));
         heading.addView(name,new LinearLayout.LayoutParams(0,-2,1)); page.addView(heading);
-        ScrollView scroll=new ScrollView(this); scroll.setFillViewport(false);
+        View accent=new View(this); accent.setBackground(shape(ACCENT,4,0));
+        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(dp(38),dp(3)); ap.topMargin=dp(4); ap.bottomMargin=dp(14); page.addView(accent,ap);
+        ScrollView scroll=new ScrollView(this); scroll.setFillViewport(false); scroll.setClipToPadding(false);
+        scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(content); page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         pageHost.addView(page,new LinearLayout.LayoutParams(-1,-1));
+        page.setAlpha(0f); page.setTranslationY(dp(12));
+        page.animate().alpha(1f).translationY(0).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
         updateBottomNav();
     }
 
     private LinearLayout pageContent(){return column();}
     private void addFeatureRow(LinearLayout list,String icon,String title,String subtitle,Runnable action){
-        LinearLayout item=row(); pad(item,18,18,18,18); item.setBackground(shape(0xFF252525,24,0));
-        LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,dp(92)); ip.bottomMargin=dp(10); list.addView(item,ip);
-        TextView glyph=text(icon,26,0xFFFFFFFF,true); glyph.setGravity(Gravity.CENTER);
-        glyph.setBackground(shape(0xFF343434,50,0)); item.addView(glyph,new LinearLayout.LayoutParams(dp(52),dp(52)));
-        LinearLayout labels=column(); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1); lp.leftMargin=dp(16); item.addView(labels,lp);
-        labels.addView(text(title,18,TEXT,false)); TextView sub=text(subtitle,13,MUTED,false);
-        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2); sp.topMargin=dp(4); labels.addView(sub,sp);
-        item.addView(text("›",32,0xFF888888,false)); item.setOnClickListener(v->action.run());
+        LinearLayout item=row(); pad(item,16,15,16,15); item.setBackground(shape(PANEL,22,0xFF292B30));
+        LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,dp(94)); ip.bottomMargin=dp(11); list.addView(item,ip);
+        TextView glyph=text(icon,24,ACCENT,true); glyph.setGravity(Gravity.CENTER);
+        glyph.setBackground(shape(0xFF292D27,18,0)); item.addView(glyph,new LinearLayout.LayoutParams(dp(54),dp(54)));
+        LinearLayout labels=column(); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1); lp.leftMargin=dp(15); item.addView(labels,lp);
+        labels.addView(text(title,18,TEXT,true)); TextView sub=text(subtitle,12,MUTED,false);
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2); sp.topMargin=dp(5); labels.addView(sub,sp);
+        TextView arrow=text("›",30,MUTED,false); item.addView(arrow);
+        item.setOnClickListener(v->{v.animate().scaleX(.98f).scaleY(.98f).setDuration(80).withEndAction(()->{v.animate().scaleX(1f).scaleY(1f).setDuration(110).start();action.run();}).start();});
     }
 
     private void updateBottomNav(){
         if(bottomBar==null)return; bottomBar.removeAllViews();
         String[] names={"Home","Settings","About"}; String[] icons={"⌂","⬡","ⓘ"};
-        for(int i=0;i<names.length;i++){ final String n=names[i];
-            LinearLayout tab=column(); tab.setGravity(Gravity.CENTER);
-            tab.addView(text(icons[i],25,currentPage.equals(n)?TEXT:0xFF777777,true));
-            TextView label=text(n,12,currentPage.equals(n)?TEXT:0xFF777777,false); tab.addView(label);
-            tab.setOnClickListener(v->{if(n.equals("Home"))showHome();else if(n.equals("Settings"))showSettings();else showAbout();});
+        for(int i=0;i<names.length;i++){ final String n=names[i]; boolean active=currentPage.equals(n);
+            LinearLayout tab=column(); tab.setGravity(Gravity.CENTER); tab.setBackground(shape(active?0xFF242B20:0x00000000,18,0));
+            TextView glyph=text(icons[i],23,active?ACCENT:0xFF777A80,true); glyph.setGravity(Gravity.CENTER);
+            tab.addView(glyph);
+            TextView label=text(n,11,active?TEXT:0xFF777A80,active); label.setGravity(Gravity.CENTER); tab.addView(label);
+            tab.setOnClickListener(v->{v.animate().alpha(.55f).setDuration(70).withEndAction(()->{if(n.equals("Home"))showHome();else if(n.equals("Settings"))showSettings();else showAbout();}).start();});
             bottomBar.addView(tab,new LinearLayout.LayoutParams(0,-1,1));
         }
     }
 
     private void showHome(){
         LinearLayout c=pageContent();
-        EditText search=new EditText(this); search.setSingleLine(true); search.setTextSize(16); search.setHint("⌕  Search");
-        search.setHintTextColor(0xFF888888); search.setTextColor(TEXT); pad(search,18,4,18,4); search.setBackground(shape(0xFF252525,40,0));
-        LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,dp(56)); ep.bottomMargin=dp(14); c.addView(search,ep);
-        TextView tip=text("Tip: Tune your display settings from separate sections.",14,0xFFAAAAAA,false); pad(tip,18,18,18,18); tip.setBackground(shape(0xFF252525,22,0));
-        LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2); tp.bottomMargin=dp(18); c.addView(tip,tp);
+        LinearLayout hero=column(); pad(hero,18,18,18,18); hero.setBackground(shape(0xFF1B2118,24,0xFF343F2B));
+        TextView eyebrow=text("YOUR DISPLAY, YOUR RULES",10,ACCENT,true); eyebrow.setLetterSpacing(.12f); hero.addView(eyebrow);
+        TextView headline=text("Make every frame\ncount.",27,TEXT,false); headline.setTypeface(Typeface.create("sans-serif-light",Typeface.NORMAL));
+        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2); hp.topMargin=dp(8); hero.addView(headline,hp);
+        TextView sub=text("Fine-tune the way your POCO feels.",12,MUTED,false);
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2); sp.topMargin=dp(6); hero.addView(sub,sp);
+        LinearLayout.LayoutParams herop=new LinearLayout.LayoutParams(-1,-2); herop.bottomMargin=dp(16); c.addView(hero,herop);
+        EditText search=new EditText(this); search.setSingleLine(true); search.setTextSize(14); search.setHint("⌕   Search features");
+        search.setHintTextColor(MUTED); search.setTextColor(TEXT); pad(search,18,2,18,2); search.setBackground(shape(PANEL,30,0xFF292B30));
+        LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,dp(52)); ep.bottomMargin=dp(17); c.addView(search,ep);
+        TextView section=text("CONTROL CENTER",10,MUTED,true); section.setLetterSpacing(.14f);
+        LinearLayout.LayoutParams secp=new LinearLayout.LayoutParams(-1,-2); secp.bottomMargin=dp(10); c.addView(section,secp);
         LinearLayout list=column(); c.addView(list);
-        addFeatureRow(list,"☼","Display Brightness","Adjust screen brightness",()->showBrightness());
-        addFeatureRow(list,"▣","Refresh Rate","Choose 30 / 60 / 90 / 120 Hz",()->showRefreshRate());
-        addFeatureRow(list,"⚙","System Tools","Device status and system utilities",()->showSettings());
+        addFeatureRow(list,"☼","Display Brightness","Smoothly adjust screen brightness",()->showBrightness());
+        addFeatureRow(list,"▣","Refresh Rate","30  /  60  /  90  /  120 Hz",()->showRefreshRate());
+        addFeatureRow(list,"⚙","System Tools","Device status and utilities",()->showSettings());
         addFeatureRow(list,"ⓘ","About AutoHz","Version and app information",()->showAbout());
         showPage("Home",c);
+        for(int i=0;i<list.getChildCount();i++){View child=list.getChildAt(i);child.setAlpha(0f);child.setTranslationY(dp(10));child.animate().alpha(1f).translationY(0).setStartDelay(45L*i).setDuration(220).start();}
+        search.addTextChangedListener(new android.text.TextWatcher(){
+            public void beforeTextChanged(CharSequence s,int st,int count,int after){}
+            public void onTextChanged(CharSequence q,int st,int before,int count){
+                String term=q.toString().toLowerCase(Locale.ROOT);
+                for(int i=0;i<list.getChildCount();i++){View v=list.getChildAt(i);TextView label=(TextView)((LinearLayout)v).getChildAt(1) instanceof LinearLayout ? (TextView)((LinearLayout)((LinearLayout)v).getChildAt(1)).getChildAt(0) : null;
+                    if(label!=null)v.setVisibility(label.getText().toString().toLowerCase(Locale.ROOT).contains(term)?View.VISIBLE:View.GONE);
+                }
+            }
+            public void afterTextChanged(android.text.Editable e){}
+        });
     }
 
     private void showBrightness(){
