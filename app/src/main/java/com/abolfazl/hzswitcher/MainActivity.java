@@ -20,7 +20,7 @@ public class MainActivity extends Activity {
     private static final int TEXT=0xFFF3F6FA, MUTED=0xFF98A7B8, ACCENT=0xFF9BE7D0;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private android.content.SharedPreferences prefs;
-    private TextView rootLabel, rateValue, rateCaption, resultLabel, deviceLabel;
+    private TextView rootLabel, rootDetail, rateValue, rateCaption, resultLabel, deviceLabel;
     private Button[] rateButtons=new Button[3];
     private Button restoreButton;
     private int selectedHz=120;
@@ -94,7 +94,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.topMargin=dp(24);page.addView(rootCard,rp);
         LinearLayout rootRow=row();rootRow.addView(text("Root access",15,TEXT,true),new LinearLayout.LayoutParams(0,-2,1));
         rootLabel=text("Checking…",12,MUTED,true);rootRow.addView(rootLabel);rootCard.addView(rootRow);
-        resultLabel=text("Waiting for device check.",12,MUTED,false);LinearLayout.LayoutParams rlp=new LinearLayout.LayoutParams(-1,-2);rlp.topMargin=dp(10);rootCard.addView(resultLabel,rlp);
+        rootDetail=text("Waiting for device check.",12,MUTED,false);LinearLayout.LayoutParams rlp=new LinearLayout.LayoutParams(-1,-2);rlp.topMargin=dp(10);rootCard.addView(rootDetail,rlp);
 
         restoreButton=new Button(this);restoreButton.setText("Restore previous settings");restoreButton.setAllCaps(false);
         restoreButton.setTextColor(TEXT);restoreButton.setTextSize(14);restoreButton.setBackground(shape(PANEL2,16,0));
@@ -142,7 +142,7 @@ public class MainActivity extends Activity {
                 rootReady=ok;
                 rootLabel.setText(ok?"GRANTED":"NOT GRANTED");
                 rootLabel.setTextColor(ok?ACCENT:0xFFFF9B9B);
-                resultLabel.setText(ok?"Root shell verified. Select a refresh rate to apply.":"Root access was not granted. Approve the superuser request in Magisk / KernelSU.");
+                rootDetail.setText(ok?"Root shell verified. Select a refresh rate to apply.":"Root access was not granted. Approve the superuser request in Magisk / KernelSU.");\n                resultLabel.setText(ok?"• Root shell verified. Ready to apply a display mode.":"• Root access not granted. Check your superuser manager.");
                 renderChoices();refreshDisplay();
             });
         });
