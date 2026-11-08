@@ -581,12 +581,16 @@ public class MainActivity extends Activity {
             }else if(key.equals("location"))commands.add("cmd location set-location-enabled "+(on?"true":"false"));
             else if(key.equals("battery_saver")){
                 String mode=on?"1":"0";
-                // AOSP CTS sequence: PowerManager command first, then global setting.
+                // Match AOSP CTS: set-mode, allow broadcasts to settle, then update GLOBAL settings.
                 commands.add("cmd power set-mode "+mode);
+                commands.add("sleep 1");
                 commands.add("settings put global low_power "+mode);
-                if(!on)commands.add("settings put global low_power_sticky 0");
+                if(!on){
+                    commands.add("settings put global low_power_sticky 0");
+                    commands.add("settings put global low_power 0");
+                }
+                commands.add("sleep 1");
                 commands.add("[ \"$(settings get global low_power)\" = \""+mode+"\" ]");
-                commands.add("dumpsys power 2>/dev/null | grep -qi 'mLowPowerModeEnabled="+(on?"true":"false")+"'");
             }else if(key.equals("hotspot"))commands.add("cmd connectivity "+(on?"tether start":"tether stop"));
             else if(key.equals("bluetooth"))commands.add("cmd bluetooth_manager "+(on?"enable":"disable"));
             else if(key.equals("dnd"))commands.add("cmd notification set_dnd "+(on?"on":"off"));
@@ -613,15 +617,17 @@ public class MainActivity extends Activity {
         }
         RootHardwareController.Result verify=RootHardwareController.run(
             "echo BATTERY_SETTING:$(settings get global low_power); "+
-            "echo BATTERY_RUNTIME:$(dumpsys power 2>/dev/null | grep -m1 -o 'mLowPowerModeEnabled=[^ ]*' || echo unavailable); "+
+            "echo BATTERY_RUNTIME_BEGIN; dumpsys power 2>/dev/null | grep -i -E 'battery.?saver|low.?power|mBatterySaver' | head -12; echo BATTERY_RUNTIME_END; "+
             "echo AUTO_BRIGHTNESS:$(settings --user 0 get system screen_brightness_mode)",5000);
         android.util.Log.i("PulseXt","Quick toggle verification: "+verify.output);
         String requestedBattery=gamePrefs.getString(profileKey(pkg,"quick_battery_saver"),"Unchanged");
         String requestedAuto=gamePrefs.getString(profileKey(pkg,"quick_auto_brightness"),"Unchanged");
         if(!requestedBattery.equals("Unchanged")){
-            String expected=requestedBattery.equals("On")?"true":"false";
-            if(!verify.output.contains("mLowPowerModeEnabled="+expected))
-                android.util.Log.e("PulseXt","Battery Saver runtime state mismatch: "+requestedBattery);
+            String expected=requestedBattery.equals("On")?"1":"0";
+            if(!verify.output.contains("BATTERY_SETTING:"+expected))
+                android.util.Log.e("PulseXt","Battery Saver setting mismatch: "+requestedBattery+"; details="+verify.output);
+            else
+                android.util.Log.i("PulseXt","Battery Saver setting accepted: "+requestedBattery+"; runtime details="+verify.output);
         }
         if(!requestedAuto.equals("Unchanged")){
             String expected=requestedAuto.equals("On")?"1":"0";
