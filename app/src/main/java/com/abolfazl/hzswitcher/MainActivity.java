@@ -580,12 +580,18 @@ public class MainActivity extends Activity {
             else if(key.equals("hotspot"))commands.add("cmd connectivity "+(on?"tether start":"tether stop"));
             else if(key.equals("bluetooth"))commands.add("cmd bluetooth_manager "+(on?"enable":"disable"));
             else if(key.equals("dnd"))commands.add("cmd notification set_dnd "+(on?"on":"off"));
-            else if(key.equals("mute")){\n                android.media.AudioManager audio=(android.media.AudioManager)getSystemService(android.content.Context.AUDIO_SERVICE);\n                int max=audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);\n                int target=on?0:Math.round(Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)))*max/100f);\n                commands.add("cmd media_session volume --stream 3 --set "+target);\n            }
+            else if(key.equals("mute")){
+                android.media.AudioManager audio=(android.media.AudioManager)getSystemService(android.content.Context.AUDIO_SERVICE);
+                int max=audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+                int target=on?0:Math.round(Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)))*max/100f);
+                commands.add("cmd media_session volume --stream 3 --set "+target);
+            }
             else if(key.equals("auto_brightness"))commands.add("settings put system screen_brightness_mode "+(on?"1":"0")+" && [ \"$(settings get system screen_brightness_mode)\" = \""+(on?"1":"0")+"\" ]");
         }
         if(commands.isEmpty())return;
         StringBuilder script=new StringBuilder();
-        for(String command:commands)script.append(command).append(" || echo PULSEXＴ_FAILED:").append(command.replace("'","")).append("\n");
+        for(String command:commands)script.append(command).append(" || echo PULSEXＴ_FAILED:").append(command.replace("'","")).append("
+");
         RootHardwareController.Result result=RootHardwareController.run(script.toString(),10000);
         if(!result.ok()||result.output.contains("PULSEXＴ_FAILED")){
             Toast.makeText(this,"Some game toggles could not be applied. Check root access and Android support.",Toast.LENGTH_LONG).show();
