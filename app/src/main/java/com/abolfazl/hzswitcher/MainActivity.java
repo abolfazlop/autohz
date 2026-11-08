@@ -281,8 +281,9 @@ public class MainActivity extends Activity {
                     String pkg=ri.activityInfo.packageName;
                     if(pkg.equals(getPackageName())||!seen.add(pkg))continue;
                     android.content.pm.ApplicationInfo ai=pm.getApplicationInfo(pkg,0);
-                    // Only include apps explicitly categorized by Android as games.
-                    if(ai.enabled && ai.category==android.content.pm.ApplicationInfo.CATEGORY_GAME)games.add(ai);
+                    // Include Android-classified games plus the explicitly requested touch tester.
+                    if(ai.enabled && (ai.category==android.content.pm.ApplicationInfo.CATEGORY_GAME
+                            || "cn.samnya.touchsampleratetest".equals(pkg)))games.add(ai);
                 }
                 Collections.sort(games,(a,b)->pm.getApplicationLabel(a).toString().compareToIgnoreCase(pm.getApplicationLabel(b).toString()));
             }catch(Exception ignored){}
