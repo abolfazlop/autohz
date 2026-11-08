@@ -106,7 +106,9 @@ public final class GameProfileMonitorService extends Service {
                     if(!volumeOk)Log.e(TAG,"Volume restore mismatch target="+target+" actual="+audio.getStreamVolume(AudioManager.STREAM_MUSIC));
                 }catch(Exception e){Log.e(TAG,"Volume restore failed",e);}
             }else Log.e(TAG,"Saved volume state invalid");
-            boolean success=displayOk&&volumeOk;
+            final boolean displayRestored=displayOk;
+            final boolean volumeRestored=volumeOk;
+            boolean success=displayRestored&&volumeRestored;
             if(success){
                 prefs.edit().putBoolean(gamePackage+".restore_pending",false)
                     .putBoolean("monitor_seen_game",false).remove(ACTIVE_PACKAGE).apply();
@@ -116,7 +118,7 @@ public final class GameProfileMonitorService extends Service {
                     Log.i(TAG,"Original game settings restored for "+gamePackage);
                     stopSelf();
                 }else{
-                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayOk+" volumeOk="+volumeOk);
+                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored);
                     handler.postDelayed(()->restoreAndFinish(),2500);
                 }
             });
