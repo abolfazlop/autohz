@@ -450,7 +450,7 @@ public class MainActivity extends Activity {
         int volume=readTaggedInt(r.output,"VOLUME_INFO:",-1);
         int volumeMax=readTaggedInt(r.output,"VOLUME_MAX:",-1);
         if(volumeMax<1)volumeMax=15;
-        if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1||volume<0||volume>volumeMax){
+        if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1 ){
             android.util.Log.e("PulseXt","Could not capture original brightness state: "+r.output);
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
             return;
