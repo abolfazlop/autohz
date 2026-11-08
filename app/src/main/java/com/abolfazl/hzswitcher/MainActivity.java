@@ -403,8 +403,8 @@ public class MainActivity extends Activity {
                 "M=/data/adb/modules/pulsext_touch_engine; "+
                 "if [ -f \"$M/disable\" ]; then echo MODULE_DISABLED; "+
                 "elif [ ! -f \"$M/module.prop\" ]; then echo MODULE_NOT_INSTALLED; "+
-                "elif [ ! -x \"$M/pulsext-touchctl\" ]; then echo CONTROL_SCRIPT_MISSING; "+
-                "else \"$M/pulsext-touchctl\" status; fi",12000);
+                "elif [ ! -f \"$M/pulsext-touchctl\" ]; then echo CONTROL_SCRIPT_MISSING; "+
+                "else sh \"$M/pulsext-touchctl\" status; fi",12000);
             runOnUiThread(()->{
                 if(touchModuleStatus.getParent()==null)return;
                 String msg=status.output;
