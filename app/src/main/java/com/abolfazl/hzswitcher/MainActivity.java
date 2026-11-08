@@ -571,16 +571,16 @@ public class MainActivity extends Activity {
             if(value.equals("Unchanged"))continue;
             boolean on=value.equals("On");
             if(key.equals("wifi"))commands.add("svc wifi "+(on?"enable":"disable"));
-            else if(key.equals("mobile_data"))commands.add("svc data "+(on?"enable":"disable"));
+            else if(key.equals("mobile_data"))commands.add("cmd phone data "+(on?"enable":"disable"));
             else if(key.equals("airplane")){
                 commands.add("settings put global airplane_mode_on "+(on?"1":"0"));
                 commands.add("am broadcast -a android.intent.action.AIRPLANE_MODE --ez state "+(on?"true":"false"));
             }else if(key.equals("location"))commands.add("cmd location set-location-enabled "+(on?"true":"false"));
             else if(key.equals("battery_saver"))commands.add("cmd power set-mode "+(on?"1":"0"));
             else if(key.equals("hotspot"))commands.add("cmd connectivity "+(on?"tether start":"tether stop"));
-            else if(key.equals("bluetooth"))commands.add("svc bluetooth "+(on?"enable":"disable"));
+            else if(key.equals("bluetooth"))commands.add("cmd bluetooth_manager "+(on?"enable":"disable"));
             else if(key.equals("dnd"))commands.add("cmd notification set_dnd "+(on?"on":"off"));
-            else if(key.equals("mute"))commands.add("cmd media_session volume --stream 3 --set "+(on?"0":"5"));
+            else if(key.equals("mute")){\n                android.media.AudioManager audio=(android.media.AudioManager)getSystemService(android.content.Context.AUDIO_SERVICE);\n                int max=audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);\n                int target=on?0:Math.round(Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)))*max/100f);\n                commands.add("cmd media_session volume --stream 3 --set "+target);\n            }
             else if(key.equals("auto_brightness"))commands.add("settings put system screen_brightness_mode "+(on?"1":"0")+" && [ \"$(settings get system screen_brightness_mode)\" = \""+(on?"1":"0")+"\" ]");
         }
         if(commands.isEmpty())return;
