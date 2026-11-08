@@ -83,6 +83,7 @@ public final class GameProfileMonitorService extends Service {
             android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
             int brightness=prefs.getInt(gamePackage+".restore_brightness",-1);
             int mode=prefs.getInt(gamePackage+".restore_brightness_mode",-1);
+            int batterySaver=prefs.getInt(gamePackage+".restore_battery_saver",-1);
             int volume=prefs.getInt(gamePackage+".restore_volume",-1);
             int volumeMax=prefs.getInt(gamePackage+".restore_volume_max",-1);
             boolean displayOk=false;
@@ -108,7 +109,16 @@ public final class GameProfileMonitorService extends Service {
             }else Log.e(TAG,"Saved volume state invalid");
             final boolean displayRestored=displayOk;
             final boolean volumeRestored=volumeOk;
-            boolean success=displayRestored&&volumeRestored;
+            boolean batterySaverRestored=false;
+            if(batterySaver==0||batterySaver==1){
+                String low=batterySaver==1?"1":"0";
+                RootHardwareController.Result power=RootHardwareController.run(
+                    "cmd power set-mode "+low+"; settings put global low_power "+low+"; "+
+                    "[ \"$(settings get global low_power)\" = \""+low+"\" ]",7000);
+                batterySaverRestored=power.ok();
+                if(!batterySaverRestored)Log.e(TAG,"Battery Saver restore failed: "+power.output);
+            }
+            boolean success=displayRestored&&volumeRestored&&batterySaverRestored;
             if(success){
                 prefs.edit().putBoolean(gamePackage+".restore_pending",false)
                     .putBoolean("monitor_seen_game",false).remove(ACTIVE_PACKAGE).apply();
@@ -118,7 +128,7 @@ public final class GameProfileMonitorService extends Service {
                     Log.i(TAG,"Original game settings restored for "+gamePackage);
                     stopSelf();
                 }else{
-                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored);
+                    Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestored);
                     handler.postDelayed(()->restoreAndFinish(),2500);
                 }
             });
