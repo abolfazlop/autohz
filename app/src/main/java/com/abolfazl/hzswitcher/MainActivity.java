@@ -564,7 +564,7 @@ public class MainActivity extends Activity {
     }
 
     private void applyGameQuickToggles(String pkg){
-        String[] keys={"wifi","mobile_data","airplane","location","battery_saver","hotspot","bluetooth","dnd","mute"};
+        String[] keys={"wifi","mobile_data","airplane","location","battery_saver","hotspot","bluetooth","dnd","mute","auto_brightness"};
         java.util.ArrayList<String> commands=new java.util.ArrayList<>();
         for(String key:keys){
             String value=gamePrefs.getString(profileKey(pkg,"quick_"+key),"Unchanged");
@@ -576,7 +576,7 @@ public class MainActivity extends Activity {
                 commands.add("settings put global airplane_mode_on "+(on?"1":"0"));
                 commands.add("am broadcast -a android.intent.action.AIRPLANE_MODE --ez state "+(on?"true":"false"));
             }else if(key.equals("location"))commands.add("cmd location set-location-enabled "+(on?"true":"false"));
-            else if(key.equals("battery_saver"))commands.add("cmd power set-mode "+(on?"1":"0"));
+            else if(key.equals("battery_saver")){\n                String mode=on?"1":"0";\n                commands.add("cmd power set-mode "+mode+" && settings put global low_power "+mode+" && [ \\"$(settings get global low_power)\\" = \\""+mode+"\\" ]");\n            }
             else if(key.equals("hotspot"))commands.add("cmd connectivity "+(on?"tether start":"tether stop"));
             else if(key.equals("bluetooth"))commands.add("cmd bluetooth_manager "+(on?"enable":"disable"));
             else if(key.equals("dnd"))commands.add("cmd notification set_dnd "+(on?"on":"off"));
@@ -592,7 +592,7 @@ public class MainActivity extends Activity {
         StringBuilder script=new StringBuilder();
         for(String command:commands)script.append(command).append(" || echo PULSEX_FAILED").append("\n");
         RootHardwareController.Result result=RootHardwareController.run(script.toString(),10000);
-        if(!result.ok()||result.output.contains("PULSEXＴ_FAILED")){
+        if(!result.ok()||result.output.contains("PULSEX_FAILED")){
             Toast.makeText(this,"Some game toggles could not be applied. Check root access and Android support.",Toast.LENGTH_LONG).show();
             android.util.Log.e("PulseXt","Quick toggle apply: "+result.output);
         }
