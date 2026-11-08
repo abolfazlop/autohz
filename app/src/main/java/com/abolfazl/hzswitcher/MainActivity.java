@@ -21,7 +21,8 @@ public class MainActivity extends Activity {
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private android.content.SharedPreferences prefs;
     private TextView rootLabel, rootDetail, rateValue, rateCaption, resultLabel, deviceLabel;
-    private Button[] rateButtons=new Button[3];
+    private final int[] rateOptions={30,40,48,50,60,72,80,90,96,100,120};
+    private final ArrayList<Button> rateButtons=new ArrayList<>();
     private Button restoreButton;
     private int selectedHz=120;
     private boolean rootReady=false, busy=false;
@@ -80,14 +81,17 @@ public class MainActivity extends Activity {
 
         addLabel(page,"Refresh rate",18,TEXT,true,28);
         addLabel(page,"Choose a mode supported by your display.",13,MUTED,false,6);
-        LinearLayout choices=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,dp(76));cp.topMargin=dp(14);page.addView(choices,cp);
-        int[] values={60,90,120};
-        for(int i=0;i<3;i++){
-            final int hz=values[i];Button b=new Button(this);rateButtons[i]=b;
-            b.setText(hz+" Hz");b.setTextSize(16);b.setAllCaps(false);b.setTextColor(TEXT);
-            b.setPadding(0,0,0,0);b.setMinHeight(0);b.setMinimumHeight(0);b.setStateListAnimator(null);
-            LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);if(i>0)bp.leftMargin=dp(9);choices.addView(b,bp);
-            b.setOnClickListener(v->applyRate(hz));
+        LinearLayout choices=column();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=dp(14);page.addView(choices,cp);
+        for(int i=0;i<rateOptions.length;i+=3){
+            LinearLayout choiceRow=row();LinearLayout.LayoutParams rowp=new LinearLayout.LayoutParams(-1,dp(58));if(i>0)rowp.topMargin=dp(8);choices.addView(choiceRow,rowp);
+            for(int j=i;j<Math.min(i+3,rateOptions.length);j++){
+                final int hz=rateOptions[j];Button b=new Button(this);rateButtons.add(b);
+                b.setText(hz+" Hz");b.setTextSize(14);b.setAllCaps(false);b.setTextColor(TEXT);
+                b.setPadding(0,0,0,0);b.setMinHeight(0);b.setMinimumHeight(0);b.setStateListAnimator(null);
+                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);if(j>i)bp.leftMargin=dp(8);choiceRow.addView(b,bp);
+                b.setOnClickListener(v->applyRate(hz));
+            }
+            while(choiceRow.getChildCount()<3){View spacer=new View(this);choiceRow.addView(spacer,new LinearLayout.LayoutParams(0,1,1));}
         }
 
         LinearLayout rootCard=column();pad(rootCard,16,16,16,16);rootCard.setBackground(shape(PANEL,20,0));
@@ -111,14 +115,11 @@ public class MainActivity extends Activity {
     }
 
     private void renderChoices(){
-        int[] hz={60,90,120};
-        for(int i=0;i<3;i++){
-            boolean ok=isSupported(hz[i]);
-            boolean active=selectedHz==hz[i];
-            rateButtons[i].setEnabled(rootReady&&!busy&&ok);
-            rateButtons[i].setAlpha(ok?1f:0.35f);
-            rateButtons[i].setText(hz[i]+" Hz"+(ok?"":"\nUnavailable"));
-            rateButtons[i].setBackground(shape(active?0xFF235D50:PANEL2,18,active?ACCENT:0));
+        for(int i=0;i<rateOptions.length;i++){
+            int hz=rateOptions[i];boolean ok=isSupported(hz);boolean active=selectedHz==hz;
+            Button b=rateButtons.get(i);b.setEnabled(rootReady&&!busy&&ok);b.setAlpha(ok?1f:0.42f);
+            b.setText(hz+" Hz"+(ok?"":" · N/A"));
+            b.setBackground(shape(active?0xFF235D50:PANEL2,16,active?ACCENT:0));
         }
         if(restoreButton!=null)restoreButton.setEnabled(rootReady&&!busy&&prefs.getBoolean("has_backup",false));
     }
@@ -188,18 +189,18 @@ public class MainActivity extends Activity {
             String message="";
             try{
                 if(!prefs.getBoolean("has_backup",false))saveBackup();
-                String cmd="settings put secure miui_refresh_rate "+hz+
-                    " && settings put system min_refresh_rate "+hz+
-                    " && settings put system peak_refresh_rate "+hz+
+                String cmd="settings put secure user_refresh_rate 1"+
+                    " && settings put secure miui_refresh_rate "+hz+
                     " && cmd display set-user-preferred-display-mode "+mode.getPhysicalWidth()+" "+mode.getPhysicalHeight()+" "+hz+" 0";
                 CommandResult applied=execRoot(cmd);
                 if(applied.exit!=0||applied.timeout)throw new RuntimeException("Apply command failed: "+applied.output);
                 Thread.sleep(900);
                 CommandResult verify=execRoot("dumpsys display");
                 String dump=verify.output;
-                boolean confirmed=dump.contains(String.format(Locale.US,"%.0f.000", (float)hz))||
-                    dump.contains("mActiveRenderFrameRate="+hz)||
-                    dump.contains("peakRefreshRate="+hz);
+                java.util.regex.Matcher active=java.util.regex.Pattern.compile("mActiveRenderFrameRate=([0-9]+(?:\\\\.[0-9]+)?)").matcher(dump);
+                boolean confirmed=false;
+                while(active.find()){try{if(Math.abs(Float.parseFloat(active.group(1))-hz)<1.2f){confirmed=true;break;}}catch(Exception ignored){}}
+                if(!confirmed){java.util.regex.Matcher peak=java.util.regex.Pattern.compile("peakRefreshRate=([0-9]+(?:\\\\.[0-9]+)?)").matcher(dump);while(peak.find()){try{if(Math.abs(Float.parseFloat(peak.group(1))-hz)<1.2f){confirmed=true;break;}}catch(Exception ignored){}}}
                 message=confirmed?"Applied. Display diagnostics contain the requested rate.":"Command accepted, but active refresh rate could not be confirmed. Check the live display mode.";
                 lastLog=message;
             }catch(Exception e){message="FAILED: "+e.getMessage();lastLog=message;}
