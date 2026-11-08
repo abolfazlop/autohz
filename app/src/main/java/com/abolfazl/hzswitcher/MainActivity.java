@@ -33,19 +33,17 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs=getSharedPreferences("hz_backup_v2",MODE_PRIVATE);
-        getWindow().setStatusBarColor(Color.TRANSPARENT);
-        getWindow().setNavigationBarColor(Color.TRANSPARENT);
-        if(android.os.Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(false);
-        else getWindow().getDecorView().setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        );
+        // Use the classic, inset-safe layout. Target SDK 34 below prevents
+        // Android 15+ forced edge-to-edge from placing our custom tab bar
+        // underneath the system gesture-navigation area.
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        getWindow().setStatusBarColor(0xFF000000);
+        getWindow().setNavigationBarColor(0xFF101010);
         if(android.os.Build.VERSION.SDK_INT>=29){
             getWindow().setStatusBarContrastEnforced(false);
             getWindow().setNavigationBarContrastEnforced(false);
         }
-        if(android.os.Build.VERSION.SDK_INT>=28)getWindow().setNavigationBarDividerColor(Color.TRANSPARENT);
+        if(android.os.Build.VERSION.SDK_INT>=28)getWindow().setNavigationBarDividerColor(0xFF101010);
         buildUi();
         refreshDisplay();
         checkRoot();
@@ -76,25 +74,6 @@ public class MainActivity extends Activity {
 
     private void buildUi() {
         appRoot=column(); appRoot.setBackgroundColor(0xFF000000);
-        appRoot.setClipToPadding(false);
-        appRoot.setOnApplyWindowInsetsListener((v,insets)->{
-            int topInset=0, bottomInset=0;
-            if(android.os.Build.VERSION.SDK_INT>=30){
-                android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.statusBars()|WindowInsets.Type.navigationBars());
-                topInset=bars.top; bottomInset=insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
-            }else{
-                topInset=insets.getSystemWindowInsetTop();
-                bottomInset=insets.getSystemWindowInsetBottom();
-            }
-            appRoot.setPadding(0,topInset,0,0);
-            if(bottomBar!=null){
-                bottomBar.setPadding(dp(12),dp(8),dp(12),dp(8)+bottomInset);
-                ViewGroup.LayoutParams navLp=bottomBar.getLayoutParams();
-                int desired=dp(68)+bottomInset;
-                if(navLp.height!=desired){navLp.height=desired;bottomBar.setLayoutParams(navLp);}
-            }
-            return insets;
-        });
         LinearLayout top=row(); pad(top,24,18,24,12);
         TextView appName=text("AutoHz",14,TEXT,true);
         top.addView(appName,new LinearLayout.LayoutParams(0,-2,1));
@@ -106,8 +85,7 @@ public class MainActivity extends Activity {
         appRoot.addView(pageHost,hostParams);
         bottomBar=row(); bottomBar.setBackgroundColor(0xFF101010); pad(bottomBar,12,8,12,8);
         bottomBar.setClipToPadding(false);
-        bottomBar.setClipToPadding(false);
-        bottomBar.setElevation(dp(8));
+        bottomBar.setElevation(dp(4));
         appRoot.addView(bottomBar,new LinearLayout.LayoutParams(-1,dp(68)));
         setContentView(appRoot); showHome();
     }
