@@ -47,6 +47,11 @@ jobs:
           sh -n kernel-module/uninstall.sh
           file kernel-module/bin/rodin_daemon | grep -q 'ARM aarch64'
           file kernel-module/bin/rodin_ctl | grep -q 'ARM aarch64'
+          chmod 0755 kernel-module/customize.sh kernel-module/post-fs-data.sh kernel-module/service.sh kernel-module/uninstall.sh kernel-module/pulsext-touchctl
+          chmod 0755 kernel-module/bin/rodin_daemon kernel-module/bin/rodin_ctl
+          test -x kernel-module/service.sh
+          test -x kernel-module/pulsext-touchctl
+          test -x kernel-module/bin/rodin_ctl
           mkdir -p dist
           cd kernel-module
           zip -r ../dist/PulseXt-KernelSU-module.zip .
