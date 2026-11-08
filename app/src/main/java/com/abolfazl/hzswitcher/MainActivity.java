@@ -327,6 +327,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ah=new LinearLayout.LayoutParams(-1,-2);ah.topMargin=dp(4);c.addView(autoHint,ah);
         auto.setOnCheckedChangeListener((b,checked)->gamePrefs.edit().putBoolean(profileKey(pkg,"auto"),checked).apply());
 
+        addGameQuickToggles(c,pkg);
+
         addLabel(c,"DISPLAY & SOUND",10,MUTED,true,22);
         addProfileSlider(c,pkg,"Brightness","brightness",0,100,gamePrefs.getInt(profileKey(pkg,"brightness"),70),"%");
         addProfileSlider(c,pkg,"Media volume","volume",0,100,gamePrefs.getInt(profileKey(pkg,"volume"),70),"%");
@@ -398,6 +400,47 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
         launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
+    }
+
+    private void addGameQuickToggles(LinearLayout parent,String pkg){
+        LinearLayout card=column();pad(card,14,12,14,12);card.setBackground(shape(PANEL,16,0xFF493765));
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=dp(14);cp.bottomMargin=dp(4);parent.addView(card,cp);
+        LinearLayout header=row();header.setGravity(android.view.Gravity.CENTER_VERTICAL);card.addView(header);
+        TextView title=text("QUICK TOGGLES",13,ACCENT,true);header.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        TextView arrow=text("⌄",22,TEXT,true);header.addView(arrow);
+        LinearLayout options=column();LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(-1,-2);op.topMargin=dp(12);card.addView(options,op);
+        boolean expanded=gamePrefs.getBoolean(profileKey(pkg,"quick_toggles_expanded"),false);
+        options.setVisibility(expanded?View.VISIBLE:View.GONE);arrow.setText(expanded?"⌃":"⌄");
+        View.OnClickListener toggle=v->{
+            boolean next=options.getVisibility()!=View.VISIBLE;
+            options.setVisibility(next?View.VISIBLE:View.GONE);arrow.setText(next?"⌃":"⌄");
+            gamePrefs.edit().putBoolean(profileKey(pkg,"quick_toggles_expanded"),next).apply();
+        };
+        header.setOnClickListener(toggle);card.setOnClickListener(toggle);
+        String[] names={"Wi-Fi","Location","Battery saver","Hotspot","Bluetooth","DND","Mute"};
+        String[] keys={"wifi","location","battery_saver","hotspot","bluetooth","dnd","mute"};
+        String[] values={"Unchanged","On","Off"};
+        for(int i=0;i<names.length;i++){
+            LinearLayout item=column();LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,-2);ip.topMargin=dp(8);options.addView(item,ip);
+            item.addView(text(names[i],13,TEXT,true));
+            LinearLayout choices=row();LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(38));rp.topMargin=dp(5);item.addView(choices,rp);
+            String saved=gamePrefs.getString(profileKey(pkg,"quick_"+keys[i]),"Unchanged");
+            for(String value:values){
+                Button b=new Button(this);b.setText(value);b.setAllCaps(false);b.setTextSize(10);b.setMinHeight(0);b.setMinimumHeight(0);b.setTextColor(TEXT);
+                b.setBackground(shape(saved.equals(value)?0xFF49336A:PANEL2,10,saved.equals(value)?ACCENT:0));
+                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);bp.leftMargin=dp(2);bp.rightMargin=dp(2);choices.addView(b,bp);
+                b.setOnClickListener(v->{
+                    gamePrefs.edit().putString(profileKey(pkg,"quick_"+keys[i]),value).apply();
+                    showGameEditor(pkg,labelForPackage(pkg));
+                });
+            }
+        }
+    }
+
+    private String labelForPackage(String pkg){
+        if(pkg.equals(selectedGamePackage)&&selectedGameLabel!=null)return selectedGameLabel;
+        try{return getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,0)).toString();}
+        catch(Exception e){return pkg;}
     }
 
     private void addClusterControls(LinearLayout parent,String pkg,String id,String heading,String hardware,int defaultMax,boolean manualAllowed){
