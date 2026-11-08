@@ -79,7 +79,7 @@ public class MainActivity extends Activity {
         TextView appName=text("PULSEXT",13,ACCENT,true);
         appName.setLetterSpacing(0.14f);
         top.addView(appName,new LinearLayout.LayoutParams(0,-2,1));
-        TextView live=text("●  DISPLAY CONTROL",10,MUTED,true);
+        TextView live=text("●  DEVICE TOOLKIT",10,MUTED,true);
         live.setLetterSpacing(0.08f); top.addView(live);
         appRoot.addView(top,new LinearLayout.LayoutParams(-1,dp(46)));
         pageHost=column();
@@ -194,10 +194,10 @@ public class MainActivity extends Activity {
     private void showHome(){
         LinearLayout c=pageContent();
         LinearLayout hero=column(); pad(hero,18,18,18,18); hero.setBackground(shape(0xFF211A2D,24,0xFF493765));
-        TextView eyebrow=text("YOUR DISPLAY, YOUR RULES",10,ACCENT,true); eyebrow.setLetterSpacing(.12f); hero.addView(eyebrow);
-        TextView headline=text("Make every frame\ncount.",27,TEXT,false); headline.setTypeface(Typeface.create("sans-serif-light",Typeface.NORMAL));
+        TextView eyebrow=text("YOUR DEVICE, YOUR RULES",10,ACCENT,true); eyebrow.setLetterSpacing(.12f); hero.addView(eyebrow);
+        TextView headline=text("More control.\nOne place.",27,TEXT,false); headline.setTypeface(Typeface.create("sans-serif-light",Typeface.NORMAL));
         LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2); hp.topMargin=dp(8); hero.addView(headline,hp);
-        TextView sub=text("Fine-tune the way your POCO feels.",12,MUTED,false);
+        TextView sub=text("Useful tools to customize and manage your Android device.",12,MUTED,false);
         LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2); sp.topMargin=dp(6); hero.addView(sub,sp);
         LinearLayout.LayoutParams herop=new LinearLayout.LayoutParams(-1,-2); herop.bottomMargin=dp(16); c.addView(hero,herop);
         EditText search=new EditText(this); search.setSingleLine(true); search.setTextSize(14); search.setHint("⌕   Search features");
