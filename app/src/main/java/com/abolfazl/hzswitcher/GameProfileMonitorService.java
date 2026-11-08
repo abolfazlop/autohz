@@ -203,24 +203,27 @@ public final class GameProfileMonitorService extends Service {
         return true;
     }
 
-    // No generic Android API exposes a universal touch sampling-rate control.
-    // Do not write guessed Goodix sysfs values: the real Rodin implementation
-    // uses Xiaomi ITouchFeature/THP handling and, for 1000 Hz, a native input
-    // event resampler running with privileged access.
+    // Communicate with the optional KernelSU PulseXt Touch Engine module.
+    // The module returns unsupported_backend until a verified vendor driver/resampler exists.
     private boolean applyGameTouchProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
-        int profile=prefs.getInt(pkg+".touch_rate",0);
-        if(profile==0)return restoreGameTouchProfile(pkg);
-        Log.w(TAG,"Touch sampling profile "+profile+" Hz is selected but cannot be safely applied: native Rodin-compatible daemon is not integrated yet");
-        return false;
+        int rate=prefs.getInt(pkg+".touch_rate",0);
+        if(rate!=0&&rate!=240&&rate!=480&&rate!=1000)return false;
+        String module="/data/adb/modules/pulsext_touch_engine/pulsext-touchctl";
+        String command="[ -x "+module+" ] && "+module+" apply "+rate;
+        RootHardwareController.Result result=RootHardwareController.run(command,7000);
+        boolean ok=result.ok()&&result.output.contains("verified=true");
+        Log.i(TAG,"KernelSU touch apply rate="+rate+" verified="+ok+" output="+result.output);
+        return rate==0?ok:ok;
     }
 
     private boolean restoreGameTouchProfile(String pkg){
-        android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
-        // This APK backend no longer writes guessed touch nodes. If an old
-        // experimental backup exists, leave it untouched rather than guessing
-        // which vendor node/value belongs to this device.
-        return !prefs.getBoolean(pkg+".touch_backup_valid",false);
+        String module="/data/adb/modules/pulsext_touch_engine/pulsext-touchctl";
+        RootHardwareController.Result result=RootHardwareController.run(
+            "[ -x "+module+" ] && "+module+" restore",7000);
+        boolean ok=result.ok();
+        Log.i(TAG,"KernelSU touch restore verified="+ok+" output="+result.output);
+        return ok;
     }
 
     /** Apply only controls enabled by the saved game profile, using live kernel bounds. */
