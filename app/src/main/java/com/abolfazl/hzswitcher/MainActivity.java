@@ -70,6 +70,13 @@ public class MainActivity extends Activity {
 
     private void buildUi() {
         appRoot=column(); appRoot.setBackgroundColor(0xFF000000);
+        appRoot.setOnApplyWindowInsetsListener((v,insets)->{
+            int bottom=0;
+            if(android.os.Build.VERSION.SDK_INT>=30) bottom=insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
+            else if(android.os.Build.VERSION.SDK_INT>=21) bottom=insets.getSystemWindowInsetBottom();
+            v.setPadding(0,0,0,bottom);
+            return insets;
+        });
         LinearLayout top=row(); pad(top,24,18,24,12);
         TextView appName=text("AutoHz",14,TEXT,true);
         top.addView(appName,new LinearLayout.LayoutParams(0,-2,1));
@@ -315,18 +322,24 @@ public class MainActivity extends Activity {
             String message="";
             try{
                 if(!prefs.getBoolean("has_backup",false))saveBackup();
-                // HyperOS 3: use the vendor secure policy and Android's GLOBAL
-                // preferred display mode. Omitting DISPLAY_ID avoids a display-local override.
-                String cmd="settings put secure user_refresh_rate 1"+
-                    " && settings put secure miui_refresh_rate "+hz+
-                    " && cmd display set-user-preferred-display-mode "+mode.getPhysicalWidth()+" "+mode.getPhysicalHeight()+" "+hz+" 0";
+                // Match the reference app's four-setting method. HyperOS reads
+                // the vendor key plus Android's min/peak/user refresh-rate policy.
+                String cmd="settings put secure miui_refresh_rate "+hz+
+                    " && settings put system min_refresh_rate "+hz+
+                    " && settings put system peak_refresh_rate "+hz+
+                    " && settings put system user_refresh_rate "+hz;
                 CommandResult applied=execRoot(cmd);
                 if(applied.exit!=0||applied.timeout)throw new RuntimeException("Apply command failed: "+applied.output);
-                Thread.sleep(1400);
-                CommandResult settingCheck=execRoot("settings get secure miui_refresh_rate");
-                if(!settingCheck.output.trim().equals(String.valueOf(hz)))
-                    throw new RuntimeException("HyperOS changed miui_refresh_rate to "+settingCheck.output+" (requested "+hz+")");
-                CommandResult preferredCheck=execRoot("cmd display get-user-preferred-display-mode 0");
+                Thread.sleep(1600);
+                String verifySettings="settings get secure miui_refresh_rate; "+
+                    "settings get system min_refresh_rate; "+
+                    "settings get system peak_refresh_rate; "+
+                    "settings get system user_refresh_rate";
+                CommandResult settingCheck=execRoot(verifySettings);
+                String[] values=settingCheck.output.trim().split("\\s+");
+                if(values.length<4)throw new RuntimeException("Could not verify all four refresh settings: "+settingCheck.output);
+                for(String value:values)if(!value.equals(String.valueOf(hz)))
+                    throw new RuntimeException("Refresh settings were overridden. Expected "+hz+" Hz, got: "+settingCheck.output);
                 prefs.edit().putInt("selected_refresh_rate",hz).apply();
                 CommandResult verify=execRoot("dumpsys display");
                 String dump=verify.output;
@@ -334,7 +347,7 @@ public class MainActivity extends Activity {
                 boolean confirmed=false;
                 while(active.find()){try{if(Math.abs(Float.parseFloat(active.group(1))-hz)<1.2f){confirmed=true;break;}}catch(Exception ignored){}}
                 if(!confirmed){java.util.regex.Matcher peak=java.util.regex.Pattern.compile("peakRefreshRate=([0-9]+(?:\\\\.[0-9]+)?)").matcher(dump);while(peak.find()){try{if(Math.abs(Float.parseFloat(peak.group(1))-hz)<1.2f){confirmed=true;break;}}catch(Exception ignored){}}}
-                message=confirmed?"Applied and verified: "+hz+" Hz.":"Preference saved ("+hz+" Hz), but active mode is currently different. HyperOS policy may be overriding it.\n"+preferredCheck.output;
+                message=confirmed?"Applied and verified: "+hz+" Hz.":"Four system settings accepted ("+hz+" Hz), but the active display mode still reports a different rate. HyperOS may be overriding the request.";
                 lastLog=message;
             }catch(Exception e){message="FAILED: "+e.getMessage();lastLog=message;}
             final String m=message;
@@ -348,7 +361,7 @@ public class MainActivity extends Activity {
         if(resultLabel!=null)resultLabel.setText("Collecting display diagnostics…");
         executor.execute(()->{
             StringBuilder out=new StringBuilder();
-            String[] commands={"settings get secure user_refresh_rate","settings get secure miui_refresh_rate","settings get system min_refresh_rate","settings get system peak_refresh_rate","cmd display get-user-preferred-display-mode 0","dumpsys display"};
+            String[] commands={"settings get system user_refresh_rate","settings get secure miui_refresh_rate","settings get system min_refresh_rate","settings get system peak_refresh_rate","cmd display get-user-preferred-display-mode 0","dumpsys display"};
             String[] labels={"secure user_refresh_rate","secure miui_refresh_rate","system min_refresh_rate","system peak_refresh_rate","preferred display mode","display dump"};
             for(int i=0;i<commands.length;i++){
                 CommandResult r=execRoot(commands[i]);
