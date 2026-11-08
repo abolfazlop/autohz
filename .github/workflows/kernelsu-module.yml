@@ -34,8 +34,8 @@ jobs:
           test -x "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
           export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
           cargo build --manifest-path rodin-source/Cargo.toml -p rodin-essential-daemon --release --target aarch64-linux-android
-          install -D -m 0755 rodin-source/target/aarch64-linux-android/release/rodin_essentiald kernel-module/bin/rodin_essentiald
-          install -D -m 0755 rodin-source/target/aarch64-linux-android/release/rodin_essentialctl kernel-module/bin/rodin_essentialctl
+          install -D -m 0755 rodin-source/target/aarch64-linux-android/release/rodin_daemon kernel-module/bin/rodin_daemon
+          install -D -m 0755 rodin-source/target/aarch64-linux-android/release/rodin_ctl kernel-module/bin/rodin_ctl
       - name: Validate module and package
         run: |
           test -f kernel-module/bin/rodin_daemon
