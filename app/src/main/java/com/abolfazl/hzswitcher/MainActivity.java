@@ -441,10 +441,16 @@ public class MainActivity extends Activity {
     private void saveGameRestoreState(String pkg){
         RootHardwareController.Result r=RootHardwareController.run(
             "echo BRIGHTNESS:$(settings get system screen_brightness); "+
-            "echo BRIGHTNESS_MODE:$(settings get system screen_brightness_mode)",5000);
+            "echo BRIGHTNESS_MODE:$(settings get system screen_brightness_mode); "+
+            "v=$(cmd media_session volume --stream 3 --get 2>/dev/null); "+
+            "echo VOLUME_INFO:$(echo \\"$v\\" | sed -n 's/.*volume=\\([0-9]*\\).*/\\1/p'); "+
+            "echo VOLUME_MAX:$(echo \\"$v\\" | sed -n 's/.*max=\\([0-9]*\\).*/\\1/p')",5000);
         int brightness=readTaggedInt(r.output,"BRIGHTNESS:",-1);
         int mode=readTaggedInt(r.output,"BRIGHTNESS_MODE:",-1);
-        if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1){
+        int volume=readTaggedInt(r.output,"VOLUME_INFO:",-1);
+        int volumeMax=readTaggedInt(r.output,"VOLUME_MAX:",-1);
+        if(volumeMax<1)volumeMax=15;
+        if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1||volume<0||volume>volumeMax){
             android.util.Log.e("PulseXt","Could not capture original brightness state: "+r.output);
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
             return;
@@ -452,6 +458,8 @@ public class MainActivity extends Activity {
         gamePrefs.edit()
             .putInt(profileKey(pkg,"restore_brightness"),brightness)
             .putInt(profileKey(pkg,"restore_brightness_mode"),mode)
+            .putInt(profileKey(pkg,"restore_volume"),volume)
+            .putInt(profileKey(pkg,"restore_volume_max"),volumeMax)
             .putBoolean(profileKey(pkg,"restore_pending"),true)
             .apply();
     }
@@ -506,12 +514,15 @@ public class MainActivity extends Activity {
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
             return;
         }
-        RootHardwareController.Result r=RootHardwareController.run(
-            "settings put system screen_brightness_mode 0 && "+
+        int volume=gamePrefs.getInt(profileKey(pkg,"restore_volume"),-1);
+        int volumeMax=gamePrefs.getInt(profileKey(pkg,"restore_volume_max"),15);
+        String command="settings put system screen_brightness_mode 0 && "+
             "settings put system screen_brightness "+brightness+" && "+
             "settings put system screen_brightness_mode "+mode+" && "+
             "[ \"$(settings get system screen_brightness)\" = \""+brightness+"\" ] && "+
-            "[ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]",7000);
+            "[ \"$(settings get system screen_brightness_mode)\" = \""+mode+"\" ]";
+        if(volume>=0&&volumeMax>0)command+=" && cmd media_session volume --stream 3 --set "+Math.min(volume,volumeMax);
+        RootHardwareController.Result r=RootHardwareController.run(command,7000);
         if(r.ok()){
             gamePrefs.edit().putBoolean(profileKey(pkg,"restore_pending"),false).apply();
             android.util.Log.i("PulseXt","Original display brightness and auto mode restored for "+pkg);
@@ -524,9 +535,15 @@ public class MainActivity extends Activity {
     private void applyGameDisplaySound(String pkg){
         int selectedPercent=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"brightness"),70)));
         int brightnessValue=Math.round(selectedPercent*255f/100f);
+        int volumePercent=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)));
+        int volumeMax=readTaggedInt(RootHardwareController.run(
+            "cmd media_session volume --stream 3 --get 2>/dev/null | sed -n 's/.*max=\\([0-9]*\\).*/\\1/p'",4000).output,"",15);
+        if(volumeMax<1)volumeMax=15;
+        int volumeValue=Math.round(volumePercent*volumeMax/100f);
         String script="settings put system screen_brightness_mode 0 && "+
             "settings put system screen_brightness "+brightnessValue+" && "+
-            "[ \"$(settings get system screen_brightness)\" = \""+brightnessValue+"\" ]";
+            "[ \"$(settings get system screen_brightness)\" = \""+brightnessValue+"\" ] && "+
+            "cmd media_session volume --stream 3 --set "+volumeValue;
         RootHardwareController.Result r=RootHardwareController.run(script,8000);
         if(!r.ok())android.util.Log.e("PulseXt","Game brightness apply failed for "+selectedPercent+"%: "+r.output);
         else android.util.Log.i("PulseXt","Game brightness applied: "+selectedPercent+"% ("+brightnessValue+"/255)");
