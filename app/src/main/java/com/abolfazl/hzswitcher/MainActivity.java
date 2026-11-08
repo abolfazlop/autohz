@@ -443,8 +443,8 @@ public class MainActivity extends Activity {
             "echo BRIGHTNESS:$(settings get system screen_brightness); "+
             "echo BRIGHTNESS_MODE:$(settings get system screen_brightness_mode); "+
             "v=$(cmd media_session volume --stream 3 --get 2>/dev/null); "+
-            "echo VOLUME_INFO:$(echo \\"$v\\" | sed -n 's/.*volume=\\([0-9]*\\).*/\\1/p'); "+
-            "echo VOLUME_MAX:$(echo \\"$v\\" | sed -n 's/.*max=\\([0-9]*\\).*/\\1/p')",5000);
+            "echo VOLUME_INFO:$(echo \"$v\" | sed -n 's/.*volume=\\([0-9]*\\).*/\\1/p'); "+
+            "echo VOLUME_MAX:$(echo \"$v\" | sed -n 's/.*max=\\([0-9]*\\).*/\\1/p')",5000);
         int brightness=readTaggedInt(r.output,"BRIGHTNESS:",-1);
         int mode=readTaggedInt(r.output,"BRIGHTNESS_MODE:",-1);
         int volume=readTaggedInt(r.output,"VOLUME_INFO:",-1);
