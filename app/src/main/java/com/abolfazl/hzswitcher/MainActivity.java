@@ -938,7 +938,7 @@ public class MainActivity extends Activity {
                     " && settings put secure miui_refresh_rate "+hz+
                     " && settings put system min_refresh_rate "+hz+
                     " && settings put system peak_refresh_rate "+hz+
-                    " && settings put secure user_refresh_rate 1;
+                    " && settings put secure user_refresh_rate 1";
                 CommandResult applied=execRoot(cmd);
                 if(applied.exit!=0||applied.timeout)throw new RuntimeException("Apply command failed: "+applied.output);
                 Thread.sleep(1600);
