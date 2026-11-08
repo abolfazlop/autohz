@@ -98,7 +98,7 @@ public final class GameProfileMonitorService extends Service {
             "w=$(echo $size | cut -dx -f1); h=$(echo $size | cut -dx -f2); "+
             "cmd display set-user-preferred-display-mode $w $h "+hz+" 0 && "+
             "settings put secure miui_refresh_rate "+hz+" && settings put system min_refresh_rate "+hz+
-            " && settings put system peak_refresh_rate "+hz+" && settings put secure user_refresh_rate 1;
+            " && settings put system peak_refresh_rate "+hz+" && settings put secure user_refresh_rate 1";
         RootHardwareController.Result r=RootHardwareController.run(script,7000);
         Log.i(TAG,"Game refresh "+hz+" Hz exit="+r.exitCode+" output="+r.output);
     }
