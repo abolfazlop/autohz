@@ -4,6 +4,7 @@ on:
     paths:
       - 'kernel-module/**'
       - '.github/workflows/kernelsu-module.yml'
+      - 'app/src/main/java/com/abolfazl/hzswitcher/GameProfileMonitorService.java'
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,21 +13,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate module files
+      - name: Checkout Rodin Essential native touch backend
+        uses: actions/checkout@v4
+        with:
+          repository: NEESCHAL-3/Rodin-Essential
+          ref: main
+          path: rodin-source
+      - name: Install Android NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ndk;27.2.12479018
+      - name: Install Rust Android target
         run: |
-          test -f kernel-module/module.prop
-          test -f kernel-module/service.sh
-          test -f kernel-module/pulsext-touchctl
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-linux-android
+      - name: Build Rodin native daemon and control client
+        run: |
+          NDK="$ANDROID_HOME/ndk/27.2.12479018"
+          test -x "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          cargo build --manifest-path rodin-source/Cargo.toml -p rodin-essential-daemon --release --target aarch64-linux-android
+          install -D -m 0755 rodin-source/target/aarch64-linux-android/release/rodin_daemon kernel-module/bin/rodin_daemon
+          install -D -m 0755 rodin-source/target/aarch64-linux-android/release/rodin_ctl kernel-module/bin/rodin_ctl
+      - name: Validate module and package
+        run: |
+          test -f kernel-module/bin/rodin_daemon
+          test -f kernel-module/bin/rodin_ctl
           sh -n kernel-module/customize.sh
           sh -n kernel-module/post-fs-data.sh
           sh -n kernel-module/service.sh
           sh -n kernel-module/pulsext-touchctl
           sh -n kernel-module/uninstall.sh
-      - name: Package KernelSU module
-        run: |
+          file kernel-module/bin/rodin_daemon | grep -q 'ARM aarch64'
+          file kernel-module/bin/rodin_ctl | grep -q 'ARM aarch64'
+          mkdir -p dist
           cd kernel-module
-          zip -r ../PulseXt-KernelSU-module.zip .
+          zip -r ../dist/PulseXt-KernelSU-module.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: PulseXt-KernelSU-module
-          path: PulseXt-KernelSU-module.zip
+          path: dist/PulseXt-KernelSU-module.zip
