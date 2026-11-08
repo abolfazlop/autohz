@@ -36,9 +36,12 @@ public final class GameProfileMonitorService extends Service {
                 handler.post(()->{
                     checking=false;
                     if(foreground){
-                        seenGame=true;
-                        getSharedPreferences(PREFS,MODE_PRIVATE).edit()
-                            .putBoolean("monitor_seen_game",true).apply();
+                        if(!seenGame){
+                            seenGame=true;
+                            getSharedPreferences(PREFS,MODE_PRIVATE).edit()
+                                .putBoolean("monitor_seen_game",true).apply();
+                            new Thread(()->applyGameHardwareProfile(gamePackage),"PulseXtHardwareApply").start();
+                        }
                         handler.postDelayed(this,1000);
                     }else if(seenGame){
                         restoreAndFinish();
@@ -73,6 +76,57 @@ public final class GameProfileMonitorService extends Service {
         handler.removeCallbacks(poll);
         handler.post(poll);
         return START_STICKY;
+    }
+
+    /** Apply only controls enabled by the saved game profile, using live kernel bounds. */
+    private void applyGameHardwareProfile(String pkg){
+        android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
+        java.util.List<RootHardwareController.CpuPolicy> policies=RootHardwareController.discoverCpuPolicies();
+        String[] ids={"little","big","prime"};
+        for(int i=0;i<policies.size()&&i<ids.length;i++){
+            RootHardwareController.CpuPolicy p=policies.get(i);
+            String id=ids[i],prefix=pkg+".";
+            boolean minOn=prefs.getBoolean(prefix+id+"_min_enabled",false);
+            boolean maxOn=prefs.getBoolean(prefix+id+"_max_enabled",false);
+            if(!minOn&&!maxOn)continue;
+            String key="hw_"+id+"_"+p.path.substring(p.path.lastIndexOf('/')+1);
+            prefs.edit().putLong(pkg+".restore_"+key+"_min",p.minKhz)
+                .putLong(pkg+".restore_"+key+"_max",p.maxKhz)
+                .putString(pkg+".restore_"+key+"_gov",p.governor).apply();
+            long min=minOn?(long)prefs.getInt(prefix+id+"_min_mhz",0)*1000L:p.minKhz;
+            long max=maxOn?(long)prefs.getInt(prefix+id+"_max_mhz",0)*1000L:p.maxKhz;
+            min=Math.max(p.hardwareMinKhz,Math.min(min,p.hardwareMaxKhz));
+            max=Math.max(p.hardwareMinKhz,Math.min(max,p.hardwareMaxKhz));
+            if(min>max){Log.e(TAG,"Invalid "+id+" CPU limits; skip "+p.path);continue;}
+            RootHardwareController.Result result=RootHardwareController.setCpuLimits(p.path,min,max);
+            Log.i(TAG,"CPU profile "+p.path+" result="+result.output+" exit="+result.exitCode);
+            String governor=prefs.getString(prefix+id+"_governor","");
+            if(!governor.isEmpty()){
+                RootHardwareController.Result gr=RootHardwareController.setCpuGovernor(p.path,governor);
+                Log.i(TAG,"CPU governor "+p.path+" result="+gr.output+" exit="+gr.exitCode);
+            }
+        }
+        java.util.List<RootHardwareController.GpuDevice> gpus=RootHardwareController.discoverGpuDevices();
+        if(!gpus.isEmpty()){
+            RootHardwareController.GpuDevice gpu=gpus.get(0);
+            boolean minOn=prefs.getBoolean(pkg+".gpu_min_enabled",false);
+            boolean maxOn=prefs.getBoolean(pkg+".gpu_max_enabled",false);
+            if(minOn||maxOn){
+                String id="restore_gpu_"+gpu.path.hashCode();
+                prefs.edit().putLong(pkg+"."+id+"_min",gpu.minHz)
+                    .putLong(pkg+"."+id+"_max",gpu.maxHz)
+                    .putString(pkg+"."+id+"_gov",gpu.governor).apply();
+                long min=minOn?(long)prefs.getInt(pkg+".gpu_min_mhz",0)*1000000L:gpu.minHz;
+                long max=maxOn?(long)prefs.getInt(pkg+".gpu_max_mhz",0)*1000000L:gpu.maxHz;
+                RootHardwareController.Result gr=RootHardwareController.setGpuLimits(gpu,min,max);
+                Log.i(TAG,"GPU profile result="+gr.output+" exit="+gr.exitCode);
+            }
+            String governor=prefs.getString(pkg+".gpu_governor","");
+            if(!governor.isEmpty()){
+                RootHardwareController.Result gr=RootHardwareController.setGpuGovernor(gpu,governor);
+                Log.i(TAG,"GPU governor result="+gr.output+" exit="+gr.exitCode);
+            }
+        }
     }
 
     private void restoreAndFinish(){
