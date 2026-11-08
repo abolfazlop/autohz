@@ -212,7 +212,7 @@ public final class GameProfileMonitorService extends Service {
         String module="/data/adb/modules/pulsext_touch_engine/pulsext-touchctl";
         String operation=rate==0?"restore":"apply "+rate;
         RootHardwareController.Result result=RootHardwareController.run(
-            "[ -x "+module+" ] && "+module+" "+operation,15000);
+            "[ -f "+module+" ] && sh "+module+" "+operation,15000);
         boolean ok=result.ok()&&(rate==0
             ?result.output.contains("touch=-1")&&result.output.contains("touch_ack=-1")
             :result.output.contains("touch_ack=1")&&result.output.contains("touch="+(rate==240?1:rate==480?2:3))&&
@@ -224,7 +224,7 @@ public final class GameProfileMonitorService extends Service {
     private boolean restoreGameTouchProfile(String pkg){
         String module="/data/adb/modules/pulsext_touch_engine/pulsext-touchctl";
         RootHardwareController.Result result=RootHardwareController.run(
-            "[ -x "+module+" ] && "+module+" restore",15000);
+            "[ -f "+module+" ] && sh "+module+" restore",15000);
         boolean unsupported=result.output.contains("error=unsupported_device")||result.output.contains("rodin_essentialctl_missing");
         boolean ok=unsupported||(result.ok()&&result.output.contains("touch=-1")&&result.output.contains("touch_ack=-1"));
         Log.i(TAG,"Rodin native touch restore verified="+ok+" unsupported="+unsupported+" output="+result.output);
