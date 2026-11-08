@@ -517,7 +517,7 @@ public class MainActivity extends Activity {
             android.util.Log.i("PulseXt","Original display brightness and auto mode restored for "+pkg);
         }else{
             android.util.Log.e("PulseXt","Brightness restore failed; pending state retained: "+r.output);
-            gameRestoreHandler.postDelayed(()->restoreGameBrightness(pkg),2500);
+            gameRestoreHandler.postDelayed(()->executor.execute(()->restoreGameBrightness(pkg)),2500);
         }
     }
 
