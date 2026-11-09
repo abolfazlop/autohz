@@ -128,18 +128,28 @@ public final class RootHardwareController {
           "echo GPU:$d; for f in name governor available_governors min_freq max_freq cur_freq available_frequencies; do "+
           "[ -r \"$d/$f\" ] && echo \"$f:$(cat \"$d/$f\" 2>/dev/null)\"; done; done";
         Result r=run(script,7000);ArrayList<GpuDevice> out=new ArrayList<>();if(!r.ok())return out;
-        String path=null,name="",gov="",govs="";long min=0,max=0,cur=0;
+        String path=null,name="",gov="",govs="",available="";long min=0,max=0,cur=0;
         for(String line:r.output.split("\\r?\\n")){
-            if(line.startsWith("GPU:")){if(path!=null)addGpu(out,path,name,gov,govs,min,max,cur);path=line.substring(4).trim();name="";gov="";govs="";min=max=cur=0;continue;}
+            if(line.startsWith("GPU:")){
+                if(path!=null)addGpu(out,path,name,gov,govs,min,max,cur,available);
+                path=line.substring(4).trim();name="";gov="";govs="";available="";min=max=cur=0;continue;
+            }
             int k=line.indexOf(':');if(k<0)continue;String key=line.substring(0,k),v=line.substring(k+1).trim();
             if(key.equals("name"))name=v;else if(key.equals("governor"))gov=v;else if(key.equals("available_governors"))govs=v;
             else if(key.equals("min_freq"))min=num(v);else if(key.equals("max_freq"))max=num(v);else if(key.equals("cur_freq"))cur=num(v);
+            else if(key.equals("available_frequencies"))available=v;
         }
-        if(path!=null)addGpu(out,path,name,gov,govs,min,max,cur);
+        if(path!=null)addGpu(out,path,name,gov,govs,min,max,cur,available);
         return out;
     }
-    private static void addGpu(List<GpuDevice> out,String p,String n,String g,String gs,long min,long max,long cur){
-        long lo=min>0?min:cur,hi=max>0?max:cur;
+    private static void addGpu(List<GpuDevice> out,String p,String n,String g,String gs,long min,long max,long cur,String available){
+        // Prefer the driver's advertised frequency table as the hardware envelope.
+        long tableMin=Long.MAX_VALUE,tableMax=0;
+        for(String token:available.split("[\\s,]+")){
+            long value=num(token);if(value>0){tableMin=Math.min(tableMin,value);tableMax=Math.max(tableMax,value);}
+        }
+        long lo=tableMax>0?tableMin:(min>0?min:cur);
+        long hi=tableMax>0?tableMax:(max>0?max:cur);
         if(lo>0&&hi>=lo)out.add(new GpuDevice(p,n,g,gs,min,max,lo,hi));
     }
     public static Result setGpuLimits(GpuDevice gpu,long min,long max) {
