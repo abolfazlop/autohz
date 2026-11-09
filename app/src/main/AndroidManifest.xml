@@ -4,11 +4,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
-    <!-- Match the upstream ClipVault bridge: system_server is trusted for this
-         signature permission; ordinary third-party apps cannot write history. -->
-    <permission
-        android:name="com.abolfazl.hzswitcher.permission.WRITE_CLIP"
-        android:protectionLevel="signature" />
 
     <application
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
@@ -35,8 +30,7 @@
             android:name=".ClipboardProvider"
             android:authorities="com.abolfazl.hzswitcher.clipboard"
             android:exported="true"
-            android:writePermission="com.abolfazl.hzswitcher.permission.WRITE_CLIP"
-            android:readPermission="com.abolfazl.hzswitcher.permission.WRITE_CLIP" />
+ />
 
         <activity android:name=".ClipboardActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
