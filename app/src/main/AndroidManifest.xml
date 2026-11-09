@@ -1,10 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
- <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/><uses-permission android:name="android.permission.FOREGROUND_SERVICE"/><uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
- <application android:theme="@android:style/Theme.Material.Light.NoActionBar" android:label="PulseXt" android:icon="@drawable/ic_pulsext" android:supportsRtl="true">
-  <meta-data android:name="xposedmodule" android:value="true"/><meta-data android:name="xposedminversion" android:value="93"/><meta-data android:name="xposeddescription" android:value="System-wide clipboard history capture for PulseXt."/><meta-data android:name="xposedscope" android:resource="@array/pulsext_xposed_scope"/>
-  <service android:name=".GameProfileMonitorService" android:exported="false" android:stopWithTask="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started game profile session monitor that restores the user's previous display brightness and media volume after the selected game exits."/></service>
-  <provider android:name=".ClipboardProvider" android:authorities="com.abolfazl.hzswitcher.clipboard" android:exported="true"/>
-  <activity android:name=".ClipboardActivity" android:exported="false"/><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
- </application>
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- Match the upstream ClipVault bridge: system_server is trusted for this
+         signature permission; ordinary third-party apps cannot write history. -->
+    <permission
+        android:name="com.abolfazl.hzswitcher.permission.WRITE_CLIP"
+        android:protectionLevel="signature" />
+
+    <application
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:label="PulseXt"
+        android:icon="@drawable/ic_pulsext"
+        android:supportsRtl="true">
+
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposedminversion" android:value="93" />
+        <meta-data android:name="xposeddescription" android:value="System-wide clipboard history capture for PulseXt." />
+        <meta-data android:name="xposedscope" android:resource="@array/pulsext_xposed_scope" />
+
+        <service
+            android:name=".GameProfileMonitorService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-started game profile session monitor that restores the user's previous display brightness and media volume after the selected game exits." />
+        </service>
+
+        <provider
+            android:name=".ClipboardProvider"
+            android:authorities="com.abolfazl.hzswitcher.clipboard"
+            android:exported="true"
+            android:writePermission="com.abolfazl.hzswitcher.permission.WRITE_CLIP"
+            android:readPermission="com.abolfazl.hzswitcher.permission.WRITE_CLIP" />
+
+        <activity android:name=".ClipboardActivity" android:exported="false" />
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
 </manifest>
