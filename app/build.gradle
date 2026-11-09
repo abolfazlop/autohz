@@ -7,6 +7,8 @@ android {
  kotlinOptions { jvmTarget = '17' }
 }
 dependencies {
-    compileOnly 'de.robv.android.xposed:api:82'
+    // Classic LSPosed entry point (provided by the framework at runtime).
+    compileOnly 'com.github.deltazefiro:XposedBridge:3137dcc'
+    // Modern libxposed entry point (provided by the framework at runtime).
     compileOnly 'io.github.libxposed:api:102.0.0'
 }
