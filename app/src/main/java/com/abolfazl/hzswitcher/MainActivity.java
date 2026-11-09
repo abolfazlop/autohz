@@ -421,7 +421,7 @@ public class MainActivity extends Activity {
         });
         TextView touchNote=text("Touch rates are applied through the Rodin native daemon on supported rodin devices. Unsupported devices are reported instead of receiving unsafe driver writes.",11,MUTED,false);
         LinearLayout.LayoutParams touchNoteParams=new LinearLayout.LayoutParams(-1,-2);touchNoteParams.topMargin=dp(8);c.addView(touchNote,touchNoteParams);
-        TextView note=text("Cluster and GPU values are stored in this game's profile. They are not applied to hardware yet; a device-specific, verified sysfs backend is required before enabling writes.",11,MUTED,false);
+        TextView note=text("CPU and GPU ranges are detected from the active kernel at runtime. Unsupported policies and governors are hidden; requested values are checked against live hardware limits before applying.",11,MUTED,false); a device-specific, verified sysfs backend is required before enabling writes.",11,MUTED,false);
         LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,-2);np.topMargin=dp(10);c.addView(note,np);
 
         Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
