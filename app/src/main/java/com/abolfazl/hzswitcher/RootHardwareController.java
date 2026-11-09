@@ -111,15 +111,15 @@ public final class RootHardwareController {
         String script =
           "echo ROOT:$(id -u); " +
           "echo PLATFORM:$(getprop ro.board.platform); " +
-          "for d in /sys/devices/system/cpu/cpufreq/policy*; do [ -d \\"$d\\" ] || continue; " +
+          "for d in /sys/devices/system/cpu/cpufreq/policy*; do [ -d \"$d\" ] || continue; " +
           "echo POLICY:$d; " +
           "for f in scaling_min_freq scaling_max_freq scaling_governor; do " +
-          "[ -e \\"$d/$f\\" ] && echo NODE:$f:$( [ -w \\"$d/$f\\" ] && echo writable || echo readonly ); done; done; " +
+          "[ -e \"$d/$f\" ] && echo NODE:$f:$( [ -w \"$d/$f\" ] && echo writable || echo readonly ); done; done; " +
           "for f in /proc/ppm/policy/hard_userlimit_min_cpu_freq /proc/ppm/policy/hard_userlimit_max_cpu_freq /proc/ppm/policy/ut_fix_freq_idx; do " +
-          "[ -e \\"$f\\" ] && echo PPM_NODE:$f:$( [ -w \\"$f\\" ] && echo writable || echo readonly ); done; " +
-          "for d in /sys/class/devfreq/*; do [ -d \\"$d\\" ] || continue; " +
-          "case \\"$(basename \\"$d\\" | tr '[:upper:]' '[:lower:]')\\" in *gpu*|*mali*|*3d*) " +
-          "echo DEVFREQ:$d; for f in min_freq max_freq governor; do [ -e \\"$d/$f\\" ] && echo NODE:$f:$( [ -w \\"$d/$f\\" ] && echo writable || echo readonly ); done;; esac; done";
+          "[ -e \"$f\" ] && echo PPM_NODE:$f:$( [ -w \"$f\" ] && echo writable || echo readonly ); done; " +
+          "for d in /sys/class/devfreq/*; do [ -d \"$d\" ] || continue; " +
+          "case \"$(basename \"$d\" | tr '[:upper:]' '[:lower:]')\" in *gpu*|*mali*|*3d*) " +
+          "echo DEVFREQ:$d; for f in min_freq max_freq governor; do [ -e \"$d/$f\" ] && echo NODE:$f:$( [ -w \"$d/$f\" ] && echo writable || echo readonly ); done;; esac; done";
         Result r=run(script,7000);
         return r.ok()?r.output:"backend_detection_failed:"+r.output;
     }
@@ -138,11 +138,11 @@ public final class RootHardwareController {
         String script="set -eu; mn='"+minKhz+"'; mx='"+maxKhz+"'; "+
           "test -w '"+base+"/scaling_min_freq' && test -w '"+base+"/scaling_max_freq' || { echo backend_read_only; exit 30; }; "+
           "curmin=$(cat '"+base+"/scaling_min_freq'); "+
-          "if [ \\"$mx\\" -lt \\"$curmin\\" ]; then "+
-          "printf '%s\\n' \\"$mn\\" > '"+base+"/scaling_min_freq'; printf '%s\\n' \\"$mx\\" > '"+base+"/scaling_max_freq'; "+
-          "else printf '%s\\n' \\"$mx\\" > '"+base+"/scaling_max_freq'; printf '%s\\n' \\"$mn\\" > '"+base+"/scaling_min_freq'; fi; "+
+          "if [ \"$mx\" -lt \"$curmin\" ]; then "+
+          "printf '%s\\n' \"$mn\" > '"+base+"/scaling_min_freq'; printf '%s\\n' \"$mx\" > '"+base+"/scaling_max_freq'; "+
+          "else printf '%s\\n' \"$mx\" > '"+base+"/scaling_max_freq'; printf '%s\\n' \"$mn\" > '"+base+"/scaling_min_freq'; fi; "+
           "amin=$(cat '"+base+"/scaling_min_freq'); amax=$(cat '"+base+"/scaling_max_freq'); "+
-          "[ \\"$amin\\" = \\"$mn\\" ] && [ \\"$amax\\" = \\"$mx\\" ] || { echo verify_mismatch:min=$amin,max=$amax; exit 31; }; echo applied:min=$amin,max=$amax";
+          "[ \"$amin\" = \"$mn\" ] && [ \"$amax\" = \"$mx\" ] || { echo verify_mismatch:min=$amin,max=$amax; exit 31; }; echo applied:min=$amin,max=$amax";
         return run(script,7000);
     }
 
