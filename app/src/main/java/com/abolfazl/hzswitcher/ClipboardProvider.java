@@ -43,24 +43,30 @@ public final class ClipboardProvider extends ContentProvider {
                     }
                 }
 
+                JSONObject current;
+                if (existing >= 0) {
+                    current = entries.getJSONObject(existing);
+                    entries.remove(existing);
+                    Long capturedAt = values.getAsLong("captured_at");
+                    current.put("time", capturedAt == null
+                        ? System.currentTimeMillis() : capturedAt);
+                } else {
+                    current = new JSONObject();
+                    current.put("id", UUID.randomUUID().toString());
+                    current.put("text", text);
+                    Long capturedAt = values.getAsLong("captured_at");
+                    current.put("time", capturedAt == null
+                        ? System.currentTimeMillis() : capturedAt);
+                    current.put("favorite", false);
+                }
+                current.put("active", true);
                 for (int i = 0; i < entries.length(); i++) {
                     JSONObject item = entries.optJSONObject(i);
-                    if (item != null) item.put("active", i == existing);
+                    if (item != null) item.put("active", false);
                 }
-
-                if (existing >= 0) {
-                    entries.getJSONObject(existing).put("active", true);
-                } else {
-                    JSONObject item = new JSONObject();
-                    item.put("id", UUID.randomUUID().toString());
-                    item.put("text", text);
-                    Long capturedAt = values.getAsLong("captured_at");
-                    item.put("time", capturedAt == null
-                        ? System.currentTimeMillis() : capturedAt);
-                    item.put("favorite", false);
-                    item.put("active", true);
-                    entries.put(0, item);
-                }
+                // Most recently copied clip is always first. Distinct clips
+                // remain separate; copying an older clip promotes that item.
+                entries.put(0, current);
 
                 int limit = prefs.getInt("history_limit", 200);
                 if (limit > 0) {
@@ -82,7 +88,10 @@ public final class ClipboardProvider extends ContentProvider {
                 // Keep a compatibility mirror for older screens/settings, but the
                 // JSON file is authoritative and is always read first by the UI.
                 prefs.edit().putString("entries", entries.toString()).apply();
-                Log.i(TAG, "Saved clipboard text to " + ClipboardStore.FILE_NAME);
+                Log.i(TAG, "Saved clipboard text to " + ClipboardStore.FILE_NAME
+                    + " (entries=" + entries.length() + ")");
+                // Wake any open ClipboardActivity immediately after the durable write.
+                getContext().getContentResolver().notifyChange(uri, null);
                 return uri;
             } catch (Throwable error) {
                 Log.e(TAG, "Could not append clipboard history", error);
