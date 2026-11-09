@@ -1,1 +1,1 @@
-<?xml version="1.0" encoding="utf-8"?><resources><array name="pulsext_xposed_scope"><item>android</item><item>com.abolfazl.hzswitcher</item></array></resources>
+<?xml version="1.0" encoding="utf-8"?><resources><array name="pulsext_xposed_scope"><item>android</item><item>com.abolfazl.hzswitcher</item><item>com.abolfazl.hzswitcher.debug</item></array></resources>
