@@ -1,7 +1,4 @@
-plugins {
- id 'com.android.application'
- id 'org.jetbrains.kotlin.android' version '2.0.21'
-}
+plugins { id 'com.android.application' }
 android {
  namespace 'com.abolfazl.hzswitcher'
  compileSdk 35
