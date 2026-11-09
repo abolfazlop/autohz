@@ -1,4 +1,7 @@
 #!/system/bin/sh
+# PulseXt safe boot service.
+# The native Rodin daemon is deliberately opt-in: an unstable vendor daemon
+# must never be allowed to freeze or reboot a device during boot.
 MODDIR=${0%/*}
 BASE=/data/adb/pulsext-touch
 STATE="$BASE/rodin-state"
@@ -8,30 +11,44 @@ umask 077
 mkdir -p "$BASE" "$STATE"
 chmod 0700 "$BASE" "$STATE"
 
-while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done
-
-# Rodin Essential's touch HAL and timing implementation is specific to Xiaomi
-# Rodin (POCO X7 Pro / Redmi Turbo 4). Fail closed on every other device.
-DEVICE="$(getprop ro.product.device)"
-if [ "$DEVICE" != "rodin" ]; then
-  echo "unsupported_device=$DEVICE; Rodin native touch backend not started" > "$BASE/status"
+# Bounded wait: never hold a boot service indefinitely.
+n=0
+while [ "$(getprop sys.boot_completed)" != "1" ] && [ "$n" -lt 90 ]; do
+  sleep 2
+  n=$((n + 1))
+done
+if [ "$(getprop sys.boot_completed)" != "1" ]; then
+  echo "status=safe_exit_boot_not_completed" > "$BASE/status"
   exit 0
 fi
 
-if [ ! -x "$DAEMON" ] || [ ! -x "$MODDIR/bin/rodin_ctl" ]; then
-  echo "error=native_backend_missing; reinstall module from latest Actions artifact" > "$BASE/status"
-  exit 1
+DEVICE="$(getprop ro.product.device)"
+if [ "$DEVICE" != "rodin" ]; then
+  echo "status=unsupported_device device=$DEVICE" > "$BASE/status"
+  exit 0
 fi
 
-while true; do
-  if ! pidof rodin_daemon >/dev/null 2>&1; then
-    echo "starting Rodin touch backend" >> "$LOG"
-    RODIN_STATE_DIR="$STATE" "$DAEMON" >> "$LOG" 2>&1 &
-    PID=$!
-    echo "$PID" > "$BASE/daemon.pid"
-  fi
-  "$MODDIR/pulsext-touchctl" probe > "$BASE/status.tmp" 2>&1
-  chmod 0600 "$BASE/status.tmp"
-  mv "$BASE/status.tmp" "$BASE/status"
-  sleep 5
-done
+# Default OFF after upgrade/install. Enable manually only after confirming
+# device stability: touch /data/adb/pulsext-touch/enable_daemon
+if [ ! -f "$BASE/enable_daemon" ]; then
+  echo "status=safe_mode daemon=disabled reason=opt_in_required" > "$BASE/status"
+  exit 0
+fi
+
+if [ ! -x "$DAEMON" ]; then
+  echo "status=safe_exit reason=native_backend_missing" > "$BASE/status"
+  exit 0
+fi
+
+# Start once only. No watchdog, no polling loop, no periodic shell probes.
+if pidof rodin_daemon >/dev/null 2>&1; then
+  echo "status=already_running" > "$BASE/status"
+  exit 0
+fi
+if [ -s "$LOG" ]; then
+  log_size=$(wc -c < "$LOG" 2>/dev/null)
+  if [ "${log_size:-0}" -gt 262144 ]; then mv "$LOG" "$LOG.old"; fi
+fi
+RODIN_STATE_DIR="$STATE" "$DAEMON" >> "$LOG" 2>&1 &
+echo "status=started pid=$!" > "$BASE/status"
+exit 0
