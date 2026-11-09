@@ -69,8 +69,8 @@ public final class RootHardwareController {
         String helper="/data/adb/modules/pulsext_touch_engine/pulsext-hwprobe";
         String script="if [ -x '"+helper+"' ]; then '"+helper+"' cpu; else "+
           "for d in /sys/devices/system/cpu/cpufreq/policy*; do "+
-          "[ -d \\"$d\\" ] || continue; "+
-          "readv(){ [ -r \\"$d/$1\\" ] && cat \\"$d/$1\\" 2>/dev/null || echo ''; }; "+
+          "[ -d \"$d\" ] || continue; "+
+          "readv(){ [ -r \"$d/$1\" ] && cat \"$d/$1\" 2>/dev/null || echo ''; }; "+
           "echo POLICY:$d; echo CPUS:$(readv related_cpus); echo GOV:$(readv scaling_governor); "+
           "echo GOVS:$(readv scaling_available_governors); "+
           "echo HMIN:$(readv cpuinfo_min_freq); echo HMAX:$(readv cpuinfo_max_freq); "+
