@@ -1,6 +1,6 @@
 id=pulsext_touch_engine
 name=PulseXt Touch Engine
-version=0.4.2
-versionCode=6
+version=0.4.3
+versionCode=7
 author=PulseXt
-description=Rodin touch backend plus read-only generic CPUFreq hardware probe
+description=Safe opt-in Rodin touch backend and read-only CPUFreq probe; daemon disabled by default
