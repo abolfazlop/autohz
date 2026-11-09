@@ -1,0 +1,22 @@
+#!/system/bin/sh
+# Read-only CPUFreq probe shared by PulseXt app (Magisk / KernelSU).
+# CPUFreq sysfs frequency values are kHz by ABI; do not convert in this script.
+set -u
+MODE="${1:-cpu}"
+[ "$MODE" = "cpu" ] || { echo "error=unsupported_mode"; exit 2; }
+found=0
+for d in /sys/devices/system/cpu/cpufreq/policy*; do
+  [ -d "$d" ] || continue
+  found=1
+  readv() { [ -r "$d/$1" ] && cat "$d/$1" 2>/dev/null || echo ""; }
+  echo "POLICY:$d"
+  echo "CPUS:$(readv related_cpus)"
+  echo "GOV:$(readv scaling_governor)"
+  echo "GOVS:$(readv scaling_available_governors)"
+  echo "HMIN:$(readv cpuinfo_min_freq)"
+  echo "HMAX:$(readv cpuinfo_max_freq)"
+  echo "MIN:$(readv scaling_min_freq)"
+  echo "MAX:$(readv scaling_max_freq)"
+  echo "FREQS:$(readv scaling_available_frequencies)"
+done
+[ "$found" -eq 1 ] || { echo "error=no_cpufreq_policies"; exit 3; }
