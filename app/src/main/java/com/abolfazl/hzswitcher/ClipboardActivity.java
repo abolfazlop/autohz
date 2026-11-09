@@ -50,21 +50,38 @@ public final class ClipboardActivity extends Activity {
   allTab=label("All",13,ACCENT,true);favTab=label("★ Favorites",13,MUTED,true);allTab.setGravity(Gravity.CENTER);favTab.setGravity(Gravity.CENTER);
   tools.addView(allTab,new LinearLayout.LayoutParams(0,dp(40),1));tools.addView(favTab,new LinearLayout.LayoutParams(0,dp(40),1));
   allTab.setOnClickListener(v->{favoritesOnly=false;render();});favTab.setOnClickListener(v->{favoritesOnly=true;render();});
-  Button imp=button("Import"),exp=button("Export");LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(dp(76),dp(38));ip.leftMargin=dp(4);tools.addView(imp,ip);LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(dp(76),dp(38));ep.leftMargin=dp(6);tools.addView(exp,ep);
-  imp.setOnClickListener(v->openImport());exp.setOnClickListener(v->openExport());
   status=label("",11,MUTED,false);LinearLayout.LayoutParams st=new LinearLayout.LayoutParams(-1,-2);st.topMargin=dp(2);root.addView(status,st);
   ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);scroll.setClipToPadding(false);list=col();pad(list,0,10,0,10);scroll.addView(list);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
   setContentView(root);render();
  }
  private void showSettings(){
-  LinearLayout box=col();pad(box,4,4,4,4);TextView mode=label("Private mode pauses saving new clipboard entries.",13,MUTED,false);box.addView(mode);
-  Switch sw=new Switch(this);sw.setText("Private mode");sw.setTextColor(TEXT);sw.setChecked(privateMode);box.addView(sw);
-  TextView limit=label("History limit",14,TEXT,true);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=dp(18);box.addView(limit,lp);
-  Spinner spinner=new Spinner(this);String[] names={"50","100","200","500","No limit"};ArrayAdapter<String>a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,names);a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);spinner.setAdapter(a);int selected=historyLimit==0?4:historyLimit==50?0:historyLimit==100?1:historyLimit==500?3:2;spinner.setSelection(selected);box.addView(spinner);
-  sw.setOnCheckedChangeListener((v,on)->{privateMode=on;getSharedPreferences(PREF,0).edit().putBoolean(PRIVATE_KEY,on).apply();render();});
-  spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onNothingSelected(android.widget.AdapterView<?>p){}public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){if(pos>=0&&pos<LIMITS.length&&historyLimit!=LIMITS[pos]){historyLimit=LIMITS[pos];getSharedPreferences(PREF,0).edit().putInt(LIMIT_KEY,historyLimit).apply();enforceLimit();save();render();}}});
-  new AlertDialog.Builder(this).setTitle("Clipboard settings").setView(box).setNeutralButton("Clear history",(d,w)->new AlertDialog.Builder(this).setTitle("Clear all clips?").setMessage("This cannot be undone.").setNegativeButton("Cancel",null).setPositiveButton("Clear",(x,y)->{entries.clear();save();render();}).show()).setPositiveButton("Done",null).show();
+  LinearLayout page=col();page.setBackgroundColor(BG);pad(page,16,10,16,14);
+  LinearLayout header=row();TextView back=label("‹",34,TEXT,false);back.setGravity(Gravity.CENTER);header.addView(back,new LinearLayout.LayoutParams(dp(42),dp(52)));back.setOnClickListener(v->build());
+  TextView title=label("Settings",23,TEXT,true);LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(0,-2,1);titleP.leftMargin=dp(4);header.addView(title,titleP);page.addView(header);
+  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);LinearLayout body=col();pad(body,0,8,0,8);scroll.addView(body);page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+  body.addView(sectionLabel("CAPTURE"));
+  LinearLayout capture=row();capture.setGravity(Gravity.CENTER_VERTICAL);capture.setBackground(shape(PANEL2,18,0));pad(capture,16,15,16,15);
+  TextView check=label(HookStatus.isActive()?"✓":"!",18,HookStatus.isActive()?ACCENT:0xffffb86b,true);check.setGravity(Gravity.CENTER);capture.addView(check,new LinearLayout.LayoutParams(dp(30),dp(30)));
+  LinearLayout captureText=col();TextView captureTitle=label(HookStatus.isActive()?"LSPosed hook active":"LSPosed hook not detected",14,TEXT,true);captureText.addView(captureTitle);TextView captureSub=label("Clipboard capture status",11,MUTED,false);captureText.addView(captureSub);LinearLayout.LayoutParams captureTextP=new LinearLayout.LayoutParams(0,-2,1);captureTextP.leftMargin=dp(10);capture.addView(captureText,captureTextP);LinearLayout.LayoutParams captureP=new LinearLayout.LayoutParams(-1,-2);captureP.topMargin=dp(8);body.addView(capture,captureP);
+  body.addView(sectionLabel("PRIVACY"));
+  LinearLayout privacy=row();privacy.setGravity(Gravity.CENTER_VERTICAL);privacy.setBackground(shape(PANEL2,18,0));pad(privacy,16,13,14,13);
+  LinearLayout privacyText=col();privacyText.addView(label("Private mode",14,TEXT,true));TextView privacySub=label("Pause history capture. New clips won't be saved while enabled.",11,MUTED,false);privacySub.setMaxWidth(dp(245));privacyText.addView(privacySub);privacy.addView(privacyText,new LinearLayout.LayoutParams(0,-2,1));
+  Switch sw=new Switch(this);sw.setChecked(privateMode);sw.setOnCheckedChangeListener((v,on)->{privateMode=on;getSharedPreferences(PREF,0).edit().putBoolean(PRIVATE_KEY,on).apply();});privacy.addView(sw);LinearLayout.LayoutParams privacyP=new LinearLayout.LayoutParams(-1,-2);privacyP.topMargin=dp(8);body.addView(privacy,privacyP);
+  body.addView(sectionLabel("HISTORY"));
+  LinearLayout history=col();history.setBackground(shape(PANEL2,18,0));pad(history,16,14,16,14);history.addView(label("Entries to keep",14,TEXT,true));
+  LinearLayout limits=row();limits.setGravity(Gravity.CENTER_VERTICAL);limits.setPadding(0,dp(12),0,0);String[] names={"50","100","200","500","No limit"};for(int i=0;i<names.length;i++){final int value=LIMITS[i];TextView chip=label(names[i],12,historyLimit==value?BG:TEXT,historyLimit==value);chip.setGravity(Gravity.CENTER);chip.setBackground(shape(historyLimit==value?ACCENT:PANEL,12,historyLimit==value?ACCENT:0xff514b5a));LinearLayout.LayoutParams chipP=new LinearLayout.LayoutParams(0,dp(40),1);if(i>0)chipP.leftMargin=dp(6);limits.addView(chip,chipP);chip.setOnClickListener(v->{historyLimit=value;getSharedPreferences(PREF,0).edit().putInt(LIMIT_KEY,value).apply();enforceLimit();save();showSettings();});}history.addView(limits);LinearLayout.LayoutParams historyP=new LinearLayout.LayoutParams(-1,-2);historyP.topMargin=dp(8);body.addView(history,historyP);
+  body.addView(sectionLabel("BACKUP & RESTORE"));
+  LinearLayout backup=col();backup.setBackground(shape(PANEL2,18,0));pad(backup,12,8,12,8);
+  backup.addView(actionRow("↓","Import clipboard","Restore clips from a JSON backup",()->openImport()));
+  View sep=new View(this);sep.setBackgroundColor(0xff393640);backup.addView(sep,new LinearLayout.LayoutParams(-1,dp(1)));
+  backup.addView(actionRow("↑","Export clipboard","Save your history as a JSON file",()->openExport()));
+  LinearLayout.LayoutParams backupP=new LinearLayout.LayoutParams(-1,-2);backupP.topMargin=dp(8);body.addView(backup,backupP);
+  TextView clear=label("▣     Clear history\n       Deletes all saved clipboard entries. This can't be undone.",13,0xffffdada,true);clear.setGravity(Gravity.CENTER_VERTICAL);clear.setBackground(shape(0xff7e2020,17,0));pad(clear,16,15,16,15);LinearLayout.LayoutParams clearP=new LinearLayout.LayoutParams(-1,-2);clearP.topMargin=dp(22);body.addView(clear,clearP);
+  clear.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Clear history?").setMessage("All saved clipboard entries will be deleted. Favorites will also be removed.").setNegativeButton("Cancel",null).setPositiveButton("Clear history",(d,w)->{entries.clear();selectedIds.clear();save();build();}).show());
+  setContentView(page);
  }
+ private TextView sectionLabel(String value){TextView t=label(value,11,ACCENT,true);t.setLetterSpacing(.08f);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(22);p.bottomMargin=dp(9);return t;}
+ private LinearLayout actionRow(String symbol,String title,String subtitle,Runnable action){LinearLayout r=row();pad(r,6,12,6,12);TextView icon=label(symbol,22,ACCENT,true);icon.setGravity(Gravity.CENTER);r.addView(icon,new LinearLayout.LayoutParams(dp(42),dp(42)));LinearLayout text=col();text.addView(label(title,14,TEXT,true));text.addView(label(subtitle,11,MUTED,false));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.leftMargin=dp(8);r.addView(text,p);TextView arrow=label("›",25,MUTED,false);r.addView(arrow);r.setOnClickListener(v->action.run());return r;}
  private void render(){
   if(list==null)return;allTab.setTextColor(favoritesOnly?MUTED:ACCENT);favTab.setTextColor(favoritesOnly?ACCENT:MUTED);list.removeAllViews();String q=search.getText().toString().trim().toLowerCase(Locale.ROOT);int shown=0;
   for(JSONObject o:new ArrayList<>(entries)){String value=o.optString("text","");if(favoritesOnly&&!o.optBoolean("favorite"))continue;if(!q.isEmpty()&&!value.toLowerCase(Locale.ROOT).contains(q))continue;shown++;addCard(o);}
