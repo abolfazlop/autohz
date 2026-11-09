@@ -21,6 +21,20 @@ THP timing layout, and the input resampler are not generic Android interfaces.
    su -c /data/adb/modules/pulsext_touch_engine/pulsext-touchctl probe
    ```
 
+## Hardware probe (CPU)
+
+The module also installs `pulsext-hwprobe`, a read-only helper used by PulseXt
+when enumerating CPUFreq policies. It reports each policy's related CPU list,
+current governor, supported governors, hardware min/max and active min/max.
+CPUFreq sysfs values are emitted unchanged in kHz; conversion to MHz is done
+only in the app's display layer. The helper does not write frequency values.
+
+Run diagnostics with:
+
+```sh
+su -c /data/adb/modules/pulsext_touch_engine/pulsext-hwprobe cpu
+```
+
 ## Game Profile rates
 
 - Default: calls `SET touch 0` and restores the OEM state captured by Rodin.
