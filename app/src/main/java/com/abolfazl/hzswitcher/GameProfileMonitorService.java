@@ -284,8 +284,9 @@ public final class GameProfileMonitorService extends Service {
                 prefs.edit().putLong(pkg+"."+id+"_min",gpu.minHz)
                     .putLong(pkg+"."+id+"_max",gpu.maxHz)
                     .putString(pkg+"."+id+"_gov",gpu.governor).apply();
-                long min=minOn?(long)prefs.getInt(pkg+".gpu_min_mhz",0)*1000000L:gpu.minHz;
-                long max=maxOn?(long)prefs.getInt(pkg+".gpu_max_mhz",0)*1000000L:gpu.maxHz;
+                long unit=gpu.hardwareMaxHz>=100000000L?1000000L:(gpu.hardwareMaxHz>=100000L?1000L:1L);
+                long min=minOn?(long)prefs.getInt(pkg+".gpu_min_mhz",0)*unit:gpu.minHz;
+                long max=maxOn?(long)prefs.getInt(pkg+".gpu_max_mhz",0)*unit:gpu.maxHz;
                 RootHardwareController.Result gr=RootHardwareController.setGpuLimits(gpu,min,max);
                 Log.i(TAG,"GPU profile result="+gr.output+" exit="+gr.exitCode);
             }
