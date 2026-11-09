@@ -55,6 +55,7 @@ public final class ClipboardHook implements IXposedHookLoadPackage {
 
     private void hookSelfStatus(LoadPackageParam param) {
         try {
+            HookStatus.moduleHooked = true;
             XposedHelpers.findAndHookMethod(
                 HookStatus.class.getName(),
                 param.classLoader,
