@@ -17,7 +17,7 @@ import java.util.*;
 public final class ClipboardActivity extends Activity {
  private static final String PREF="pulsext_clipboard",KEY="entries",LIMIT_KEY="history_limit",PRIVATE_KEY="private_mode";
  private static final int IMPORT=41,EXPORT=42; private static final int[] LIMITS={50,100,200,500,0};
- private static final int BG=0xff08090b,PANEL=0xff191a1d,PANEL2=0xff24262a,TEXT=0xfff5f3fa,MUTED=0xffaaa5b5,ACCENT=0xffb58cff;
+ private static final int BG=0xff08090b,PANEL=0xff191a1d,PANEL2=0xff25262b,TEXT=0xfff5f3fa,MUTED=0xffaaa5b5,ACCENT=0xffa987ff;
  private final ArrayList<JSONObject> entries=new ArrayList<>(); private final HashSet<String> selectedIds=new HashSet<>(); private LinearLayout list,root; private EditText search;
  private boolean favoritesOnly=false,privateMode=false; private int historyLimit=200; private ClipboardManager clipboard;
  private TextView allTab,favTab,status; private android.os.Handler handler=new android.os.Handler();
@@ -37,17 +37,24 @@ public final class ClipboardActivity extends Activity {
  private void captureCurrent(){if(privateMode||clipboard==null)return;try{if(!clipboard.hasPrimaryClip())return;ClipData d=clipboard.getPrimaryClip();if(d==null||d.getItemCount()==0)return;CharSequence c=d.getItemAt(0).getText();if(c!=null)addClip(c.toString(),System.currentTimeMillis());}catch(Exception ignored){}}
  private void addClip(String text,long time){if(privateMode||text==null||text.trim().isEmpty())return;for(JSONObject o:entries)if(o.optString("text").equals(text)){try{o.put("active",true);for(JSONObject x:entries)if(x!=o)x.put("active",false);}catch(Exception ignored){}save();render();return;}try{for(JSONObject o:entries)o.put("active",false);JSONObject n=new JSONObject();n.put("id",UUID.randomUUID().toString());n.put("text",text);n.put("time",time);n.put("favorite",false);n.put("active",true);entries.add(0,n);enforceLimit();save();render();}catch(Exception ignored){}}
  private void build(){
-  root=col();root.setBackgroundColor(BG);pad(root,16,14,16,10);LinearLayout head=row();head.addView(label("Clipboard",27,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
-  TextView gear=label("⚙",25,ACCENT,true);gear.setGravity(Gravity.CENTER);head.addView(gear,new LinearLayout.LayoutParams(dp(44),dp(44)));gear.setOnClickListener(v->showSettings());root.addView(head);
-  LinearLayout sr=row();sr.setBackground(shape(PANEL,26,0xff302b39));pad(sr,14,2,12,2);sr.addView(label("⌕",25,MUTED,false),new LinearLayout.LayoutParams(dp(28),dp(46)));
-  search=new EditText(this);search.setSingleLine(true);search.setTextSize(14);search.setTextColor(TEXT);search.setHintTextColor(MUTED);search.setHint("Search clipboard");search.setBackgroundColor(0x00000000);sr.addView(search,new LinearLayout.LayoutParams(0,dp(48),1));
-  TextView clear=label("×",24,MUTED,false);clear.setGravity(Gravity.CENTER);sr.addView(clear,new LinearLayout.LayoutParams(dp(28),dp(44)));clear.setOnClickListener(v->search.setText(""));
-  LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=dp(14);root.addView(sr,sp);
+  root=col();root.setBackgroundColor(BG);pad(root,16,12,16,10);
+  LinearLayout header=row();
+  LinearLayout searchBox=row();searchBox.setGravity(Gravity.CENTER_VERTICAL);searchBox.setBackground(shape(PANEL2,28,0));pad(searchBox,14,0,12,0);
+  TextView magnify=label("⌕",27,MUTED,false);magnify.setGravity(Gravity.CENTER);searchBox.addView(magnify,new LinearLayout.LayoutParams(dp(34),dp(52)));
+  search=new EditText(this);search.setSingleLine(true);search.setTextSize(15);search.setTextColor(TEXT);search.setHintTextColor(MUTED);search.setHint("Search clipboard history");search.setBackgroundColor(0x00000000);searchBox.addView(search,new LinearLayout.LayoutParams(0,dp(52),1));
+  header.addView(searchBox,new LinearLayout.LayoutParams(0,dp(54),1));
+  TextView gear=label("⚙",25,ACCENT,true);gear.setGravity(Gravity.CENTER);LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(dp(48),dp(54));gp.leftMargin=dp(8);header.addView(gear,gp);gear.setOnClickListener(v->showSettings());
+  root.addView(header);
   search.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int before,int count){render();}public void afterTextChanged(android.text.Editable e){}});
-  LinearLayout tabs=row();tabs.setPadding(0,dp(10),0,dp(8));allTab=label("All",14,ACCENT,true);favTab=label("★ Favorites",14,MUTED,true);allTab.setGravity(Gravity.CENTER);favTab.setGravity(Gravity.CENTER);tabs.addView(allTab,new LinearLayout.LayoutParams(0,dp(42),1));tabs.addView(favTab,new LinearLayout.LayoutParams(0,dp(42),1));allTab.setOnClickListener(v->{favoritesOnly=false;render();});favTab.setOnClickListener(v->{favoritesOnly=true;render();});root.addView(tabs);
-  LinearLayout actions=row();Button imp=button("Import"),exp=button("Export");imp.setOnClickListener(v->openImport());exp.setOnClickListener(v->openExport());actions.addView(imp,new LinearLayout.LayoutParams(0,dp(44),1));LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(0,dp(44),1);ep.leftMargin=dp(8);actions.addView(exp,ep);root.addView(actions);
-  status=label("",11,MUTED,false);LinearLayout.LayoutParams st=new LinearLayout.LayoutParams(-1,-2);st.topMargin=dp(8);root.addView(status,st);
-  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);list=col();pad(list,0,10,0,10);scroll.addView(list);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);render();
+  LinearLayout tools=row();tools.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams toolp=new LinearLayout.LayoutParams(-1,dp(46));toolp.topMargin=dp(8);root.addView(tools,toolp);
+  allTab=label("All",13,ACCENT,true);favTab=label("★ Favorites",13,MUTED,true);allTab.setGravity(Gravity.CENTER);favTab.setGravity(Gravity.CENTER);
+  tools.addView(allTab,new LinearLayout.LayoutParams(0,dp(40),1));tools.addView(favTab,new LinearLayout.LayoutParams(0,dp(40),1));
+  allTab.setOnClickListener(v->{favoritesOnly=false;render();});favTab.setOnClickListener(v->{favoritesOnly=true;render();});
+  Button imp=button("Import"),exp=button("Export");LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(dp(76),dp(38));ip.leftMargin=dp(4);tools.addView(imp,ip);LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(dp(76),dp(38));ep.leftMargin=dp(6);tools.addView(exp,ep);
+  imp.setOnClickListener(v->openImport());exp.setOnClickListener(v->openExport());
+  status=label("",11,MUTED,false);LinearLayout.LayoutParams st=new LinearLayout.LayoutParams(-1,-2);st.topMargin=dp(2);root.addView(status,st);
+  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);scroll.setClipToPadding(false);list=col();pad(list,0,10,0,10);scroll.addView(list);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+  setContentView(root);render();
  }
  private void showSettings(){
   LinearLayout box=col();pad(box,4,4,4,4);TextView mode=label("Private mode pauses saving new clipboard entries.",13,MUTED,false);box.addView(mode);
@@ -65,15 +72,33 @@ public final class ClipboardActivity extends Activity {
   if(shown==0){TextView empty=label(q.isEmpty()?(favoritesOnly?"No favorites yet":"No clipboard history yet"):"No matching clips",15,MUTED,false);empty.setGravity(Gravity.CENTER);pad(empty,16,48,16,48);list.addView(empty,new LinearLayout.LayoutParams(-1,-2));}
  }
  private void addCard(JSONObject o){
-  LinearLayout card=col();pad(card,14,13,14,10);boolean selected=selectedIds.contains(o.optString("id"));card.setBackground(shape(selected?0xff302447:PANEL,20,selected?ACCENT:(o.optBoolean("active")?0xff7956a8:0xff292b30)));card.setOnLongClickListener(v->{String id=o.optString("id");if(!selectedIds.add(id))selectedIds.remove(id);render();return true;});LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=dp(9);list.addView(card,cp);
-  LinearLayout top=row();top.addView(label(relativeTime(o.optLong("time")),11,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));if(o.optBoolean("active"))top.addView(label("●  On clipboard",10,ACCENT,true));card.addView(top);
-  TextView content=label(o.optString("text"),14,TEXT,false);content.setMaxLines(5);content.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2);tp.topMargin=dp(7);card.addView(content,tp);
-  LinearLayout actions=row();LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(40));ap.topMargin=dp(8);card.addView(actions,ap);
-  Button copy=button("Copy"),fav=button(o.optBoolean("favorite")?"★ Saved":"☆ Favorite"),del=button("Delete");
-  copy.setOnClickListener(v->{((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("PulseXt",o.optString("text")));try{for(JSONObject x:entries)x.put("active",x==o);}catch(Exception ignored){}save();render();Toast.makeText(this,"Copied",Toast.LENGTH_SHORT).show();});
-  fav.setOnClickListener(v->{try{o.put("favorite",!o.optBoolean("favorite"));save();render();}catch(Exception ignored){}});
-  del.setOnClickListener(v->{entries.remove(o);save();render();});
-  actions.addView(copy,new LinearLayout.LayoutParams(0,-1,1));LinearLayout.LayoutParams f=new LinearLayout.LayoutParams(0,-1,1);f.leftMargin=dp(6);actions.addView(fav,f);LinearLayout.LayoutParams d=new LinearLayout.LayoutParams(0,-1,1);d.leftMargin=dp(6);actions.addView(del,d);
+  LinearLayout card=col();pad(card,15,13,15,13);
+  boolean selected=selectedIds.contains(o.optString("id"));
+  int fill=selected?0xff30234a:PANEL2;
+  int stroke=selected?0xffa987ff:(o.optBoolean("active")?0xffa987ff:0);
+  card.setBackground(shape(fill,22,stroke));
+  LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=dp(10);list.addView(card,cp);
+  LinearLayout top=row();
+  top.addView(label(relativeTime(o.optLong("time")),11,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));
+  if(o.optBoolean("active"))top.addView(label("●  On clipboard",11,ACCENT,true));
+  if(o.optBoolean("favorite")){TextView star=label("★",16,ACCENT,true);LinearLayout.LayoutParams starP=new LinearLayout.LayoutParams(dp(25),-2);starP.leftMargin=dp(8);top.addView(star,starP);}
+  card.addView(top);
+  TextView content=label(o.optString("text"),15,TEXT,false);content.setMaxLines(7);content.setEllipsize(android.text.TextUtils.TruncateAt.END);
+  LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2);tp.topMargin=dp(8);card.addView(content,tp);
+  card.setOnClickListener(v->{
+   ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("PulseXt",o.optString("text")));
+   try{for(JSONObject x:entries)x.put("active",x==o);}catch(Exception ignored){}
+   save();render();Toast.makeText(this,"Copied to clipboard",Toast.LENGTH_SHORT).show();
+  });
+  card.setOnLongClickListener(v->{
+   String[] options={o.optBoolean("favorite")?"Remove from favorites":"Add to favorites","Copy","Delete","Select"};
+   new AlertDialog.Builder(this).setItems(options,(dialog,which)->{
+    if(which==0){try{o.put("favorite",!o.optBoolean("favorite"));save();render();}catch(Exception ignored){}}
+    else if(which==1){((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("PulseXt",o.optString("text")));Toast.makeText(this,"Copied",Toast.LENGTH_SHORT).show();}
+    else if(which==2){entries.remove(o);save();render();}
+    else {String id=o.optString("id");if(!selectedIds.add(id))selectedIds.remove(id);render();}
+   }).show();return true;
+  });
  }
  private String relativeTime(long t){long diff=Math.max(0,System.currentTimeMillis()-t),m=60000L,h=60*m,d=24*h;if(diff<m)return "Just now";if(diff<h)return diff/m+"m ago";if(diff<d)return diff/h+"h ago";if(diff<7*d)return diff/d+"d ago";return DateFormat.getDateInstance(DateFormat.MEDIUM).format(new Date(t));}
  private void openImport(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("application/json");i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,IMPORT);}
