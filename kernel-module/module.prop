@@ -1,6 +1,6 @@
 id=pulsext_touch_engine
 name=PulseXt Touch Engine
-version=0.4.1
-versionCode=5
+version=0.4.2
+versionCode=6
 author=PulseXt
-description=Rodin Essential v1.18.5 native touch backend for POCO X7 Pro / Redmi Turbo 4
+description=Rodin touch backend plus read-only generic CPUFreq hardware probe
