@@ -131,26 +131,7 @@ public class MainActivity extends Activity {
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(false); scroll.setClipToPadding(false);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(content); page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        if(title.equals("About")){
-            FrameLayout aboutRoot=new FrameLayout(this);
-            ImageView wallpaper=new ImageView(this);
-            try(InputStream in=getAssets().open("about_wallpaper.b64"); ByteArrayOutputStream out=new ByteArrayOutputStream()){
-                byte[] buf=new byte[8192]; int n;
-                while((n=in.read(buf))>0)out.write(buf,0,n);
-                byte[] jpg=android.util.Base64.decode(out.toString("UTF-8"),android.util.Base64.DEFAULT);
-                android.graphics.Bitmap bitmap=android.graphics.BitmapFactory.decodeByteArray(jpg,0,jpg.length);
-                wallpaper.setImageBitmap(bitmap);
-            }catch(Exception ignored){ wallpaper.setBackgroundColor(0xFF100D16); }
-            wallpaper.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            wallpaper.setAdjustViewBounds(false);
-            wallpaper.setLayerType(View.LAYER_TYPE_HARDWARE,null);
-            aboutRoot.addView(wallpaper,new FrameLayout.LayoutParams(-1,-1));
-            page.setBackgroundColor(Color.TRANSPARENT);
-            aboutRoot.addView(page,new FrameLayout.LayoutParams(-1,-1));
-            pageHost.addView(aboutRoot,new LinearLayout.LayoutParams(-1,-1));
-        }else{
-            pageHost.addView(page,new LinearLayout.LayoutParams(-1,-1));
-        }
+        pageHost.addView(page,new LinearLayout.LayoutParams(-1,-1));
         page.setAlpha(0f); page.setTranslationY(dp(12));
         page.animate().alpha(1f).translationY(0).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
         updateBottomNav();
@@ -849,22 +830,20 @@ public class MainActivity extends Activity {
     }
 
     private void showAbout(){
-        LinearLayout c=pageContent();
-        c.setBackgroundColor(Color.TRANSPARENT);
-        TextView logo=text("PulseXt",42,0xEFFFFFFF,false); logo.setGravity(Gravity.CENTER);
+        LinearLayout c=pageContent(); TextView logo=text("PulseXt",42,TEXT,false); logo.setGravity(Gravity.CENTER);
         c.addView(logo,new LinearLayout.LayoutParams(-1,dp(110)));
-        TextView desc=text("A versatile toolkit to customize, optimize, and manage your Android device.",15,0xDDE8E4EF,false); desc.setGravity(Gravity.CENTER); c.addView(desc);
-        TextView version=text("Version 1.0.0  •  Built for Android / HyperOS",13,0xCCD0C8DC,false); version.setGravity(Gravity.CENTER); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2); vp.topMargin=dp(18); c.addView(version,vp);
+        TextView desc=text("A versatile toolkit to customize, optimize, and manage your Android device.",15,MUTED,false); desc.setGravity(Gravity.CENTER); c.addView(desc);
+        TextView version=text("Version 1.0.0  •  Built for Android / HyperOS",13,MUTED,false); version.setGravity(Gravity.CENTER); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2); vp.topMargin=dp(18); c.addView(version,vp);
         LinearLayout links=column(); LinearLayout.LayoutParams linksP=new LinearLayout.LayoutParams(-1,-2); linksP.topMargin=dp(28); c.addView(links,linksP);
         addDeveloperLink(links,"CREATOR","@U_GamerXt","https://t.me/U_GamerXt");
         addDeveloperLink(links,"DEVELOPER CHANNEL","@magiskmodulext","https://t.me/magiskmodulext");
-        TextView footer=text("Made with care • PulseXt",11,0xCBE1D9EA,false); footer.setGravity(Gravity.CENTER);
+        TextView footer=text("Made with care • PulseXt",11,MUTED,false); footer.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2); fp.topMargin=dp(24); c.addView(footer,fp);
         showPage("About",c);
     }
 
     private void addDeveloperLink(LinearLayout parent,String title,String handle,String url){
-        LinearLayout card=row(); pad(card,16,14,16,14); card.setBackground(shape(0xA91B1722,18,0x887F61A8));
+        LinearLayout card=row(); pad(card,16,14,16,14); card.setBackground(shape(PANEL,18,0xFF3C3150));
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(76)); p.bottomMargin=dp(10); parent.addView(card,p);
         LinearLayout labels=column(); card.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
         TextView caption=text(title,10,MUTED,true); caption.setLetterSpacing(.1f); labels.addView(caption);
