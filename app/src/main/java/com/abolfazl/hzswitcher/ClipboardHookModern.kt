@@ -48,6 +48,7 @@ class ClipboardHookModern : XposedModule() {
         if (param.packageName == "com.abolfazl.hzswitcher") {
             try {
                 val status = param.defaultClassLoader.loadClass("com.abolfazl.hzswitcher.HookStatus")
+                status.getField("moduleHooked").setBoolean(null, true)
                 val method = status.getDeclaredMethod("isActive")
                 hook(method)
                     .setPriority(XposedInterface.PRIORITY_HIGHEST)
