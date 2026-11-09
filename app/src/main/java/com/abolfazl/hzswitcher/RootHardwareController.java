@@ -101,10 +101,11 @@ public final class RootHardwareController {
         if(p==null)return new Result(3,"CPU policy not detected");
         if(minKhz<p.hardwareMinKhz||maxKhz>p.hardwareMaxKhz||minKhz>maxKhz)return new Result(4,"requested CPU limits outside detected hardware range");
         String base=p.path;
-        // Lower the ceiling first, then raise the floor. This ordering is required
-        // by CPUFreq drivers when the requested range crosses the current limits.
-        String command="echo "+maxKhz+" > '"+base+"/scaling_max_freq' && "+
-          "echo "+minKhz+" > '"+base+"/scaling_min_freq' && "+
+        // Avoid transient min>max/max<min conflicts while moving the policy window.
+        String command="curmin=$(cat '"+base+"/scaling_min_freq') && curmax=$(cat '"+base+"/scaling_max_freq') && "+
+          "if [ "+maxKhz+" -lt \"$curmin\" ]; then "+
+          "echo "+minKhz+" > '"+base+"/scaling_min_freq' && echo "+maxKhz+" > '"+base+"/scaling_max_freq'; "+
+          "else echo "+maxKhz+" > '"+base+"/scaling_max_freq' && echo "+minKhz+" > '"+base+"/scaling_min_freq'; fi && "+
           "[ \"$(cat '"+base+"/scaling_min_freq')\" = '"+minKhz+"' ] && "+
           "[ \"$(cat '"+base+"/scaling_max_freq')\" = '"+maxKhz+"' ]";
         return run(command,5000);
