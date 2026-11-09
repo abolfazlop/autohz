@@ -101,8 +101,13 @@ public final class RootHardwareController {
         if(p==null)return new Result(3,"CPU policy not detected");
         if(minKhz<p.hardwareMinKhz||maxKhz>p.hardwareMaxKhz||minKhz>maxKhz)return new Result(4,"requested CPU limits outside detected hardware range");
         String base=p.path;
-        return run("echo "+minKhz+" > '"+base+"/scaling_min_freq' && echo "+maxKhz+" > '"+base+"/scaling_max_freq' && "+
-          "[ \"$(cat '"+base+"/scaling_min_freq')\" = '"+minKhz+"' ] && [ \"$(cat '"+base+"/scaling_max_freq')\" = '"+maxKhz+"' ]",5000);
+        // Lower the ceiling first, then raise the floor. This ordering is required
+        // by CPUFreq drivers when the requested range crosses the current limits.
+        String command="echo "+maxKhz+" > '"+base+"/scaling_max_freq' && "+
+          "echo "+minKhz+" > '"+base+"/scaling_min_freq' && "+
+          "[ \"$(cat '"+base+"/scaling_min_freq')\" = '"+minKhz+"' ] && "+
+          "[ \"$(cat '"+base+"/scaling_max_freq')\" = '"+maxKhz+"' ]";
+        return run(command,5000);
     }
 
     public static Result setCpuGovernor(String policyPath,String governor) {
@@ -145,7 +150,12 @@ public final class RootHardwareController {
         String maxFile=p+"/max_freq";
         if(!new File(maxFile).exists())return new Result(5,"GPU max_freq control unavailable");
         if(!new File(minFile).exists())return new Result(5,"GPU min_freq control unavailable");
-        return run("echo "+min+" > '"+minFile+"' && echo "+max+" > '"+maxFile+"'",5000);
+        // As with CPUFreq, lower the maximum before raising the minimum.
+        // Verify both values; a successful shell write alone is not proof that
+        // the vendor devfreq driver accepted the requested limits.
+        return run("echo "+max+" > '"+maxFile+"' && echo "+min+" > '"+minFile+"' && "+
+          "[ \"$(cat '"+minFile+"')\" = '"+min+"\" ] && "+
+          "[ \"$(cat '"+maxFile+"')\" = '"+max+"\" ]",5000);
     }
     public static Result setGpuGovernor(GpuDevice gpu,String governor) {
         if(gpu==null||governor==null||!governor.matches("[A-Za-z0-9_]+"))return new Result(2,"invalid GPU or governor");
