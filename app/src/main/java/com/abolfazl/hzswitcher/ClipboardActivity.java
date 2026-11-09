@@ -55,41 +55,45 @@ public final class ClipboardActivity extends Activity {
   setContentView(root);render();
  }
  private void showSettings(){
-  LinearLayout page=col();page.setBackgroundColor(BG);pad(page,20,8,20,16);
-  LinearLayout header=row();TextView back=label("‹",32,TEXT,false);back.setGravity(Gravity.CENTER);header.addView(back,new LinearLayout.LayoutParams(dp(36),dp(48)));back.setOnClickListener(v->build());
-  TextView title=label("Settings",22,TEXT,true);LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(0,-2,1);titleP.leftMargin=dp(8);header.addView(title,titleP);page.addView(header);
-  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);LinearLayout body=col();pad(body,0,6,0,8);scroll.addView(body);page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+  LinearLayout page=col();page.setBackgroundColor(BG);pad(page,16,4,16,16);
+  LinearLayout header=row();TextView back=label("‹",32,TEXT,false);back.setGravity(Gravity.CENTER);header.addView(back,new LinearLayout.LayoutParams(dp(36),dp(52)));back.setOnClickListener(v->build());
+  TextView title=label("Settings",22,TEXT,true);LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(0,-2,1);titleP.leftMargin=dp(4);header.addView(title,titleP);page.addView(header);
+  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);LinearLayout body=col();pad(body,0,2,0,8);scroll.addView(body);page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
 
-  body.addView(sectionLabel("CAPTURE"));
-  LinearLayout capture=row();capture.setGravity(Gravity.CENTER_VERTICAL);capture.setBackground(shape(PANEL2,16,0));pad(capture,14,12,14,12);
-  TextView check=label(HookStatus.isActive()?"✓":"!",16,HookStatus.isActive()?ACCENT:0xffffb86b,true);check.setGravity(Gravity.CENTER);check.setBackground(shape(HookStatus.isActive()?0xff352b4a:0xff49351f,24,0));capture.addView(check,new LinearLayout.LayoutParams(dp(34),dp(34)));
-  LinearLayout captureText=col();captureText.addView(label(HookStatus.isActive()?"LSPosed hook active":"LSPosed hook not detected",13,TEXT,true));TextView captureSub=label("Clipboard capture status",10,MUTED,false);LinearLayout.LayoutParams subP=new LinearLayout.LayoutParams(-2,-2);subP.topMargin=dp(2);captureText.addView(captureSub,subP);LinearLayout.LayoutParams ctp=new LinearLayout.LayoutParams(0,-2,1);ctp.leftMargin=dp(11);capture.addView(captureText,ctp);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=dp(7);body.addView(capture,cp);
+  body.addView(sectionLabel("Capture",8));
+  LinearLayout capture=row();capture.setGravity(Gravity.CENTER_VERTICAL);capture.setBackground(shape(PANEL2,16,0));pad(capture,16,15,16,15);
+  TextView check=label(HookStatus.isActive()?"✓":"!",17,HookStatus.isActive()?ACCENT:0xffffb86b,true);check.setGravity(Gravity.CENTER);capture.addView(check,new LinearLayout.LayoutParams(dp(28),dp(28)));
+  TextView captureText=label(HookStatus.isActive()?"LSPosed hook active":"LSPosed hook not detected",14,TEXT,false);LinearLayout.LayoutParams captureTextP=new LinearLayout.LayoutParams(0,-2,1);captureTextP.leftMargin=dp(12);capture.addView(captureText,captureTextP);
+  LinearLayout.LayoutParams captureP=new LinearLayout.LayoutParams(-1,-2);captureP.topMargin=dp(1);body.addView(capture,captureP);
 
-  body.addView(sectionLabel("PRIVACY"));
-  LinearLayout privacy=row();privacy.setGravity(Gravity.CENTER_VERTICAL);pad(privacy,2,5,2,5);
-  LinearLayout privacyText=col();privacyText.addView(label("Private mode",14,TEXT,true));TextView privacySub=label("Pause history capture while enabled",11,MUTED,false);LinearLayout.LayoutParams psp=new LinearLayout.LayoutParams(-2,-2);psp.topMargin=dp(3);privacyText.addView(privacySub,psp);privacy.addView(privacyText,new LinearLayout.LayoutParams(0,-2,1));
-  Switch sw=new Switch(this);sw.setChecked(privateMode);if(android.os.Build.VERSION.SDK_INT>=21){sw.setThumbTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{ACCENT,0xffb8b8c0}));sw.setTrackTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{0xff59467d,0xff45454d}));}sw.setOnCheckedChangeListener((v,on)->{privateMode=on;getSharedPreferences(PREF,0).edit().putBoolean(PRIVATE_KEY,on).apply();});privacy.addView(sw);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,-2);pp.topMargin=dp(2);body.addView(privacy,pp);
+  body.addView(sectionLabel("Privacy",28));
+  LinearLayout privacy=row();privacy.setGravity(Gravity.CENTER_VERTICAL);
+  LinearLayout privacyText=col();privacyText.addView(label("Private mode",14,TEXT,false));TextView privacySub=label("Pause history. New clips are not saved while this is on.",11,MUTED,false);privacySub.setMaxWidth(dp(245));LinearLayout.LayoutParams privacySubP=new LinearLayout.LayoutParams(-2,-2);privacySubP.topMargin=dp(2);privacyText.addView(privacySub,privacySubP);
+  privacy.addView(privacyText,new LinearLayout.LayoutParams(0,-2,1));
+  Switch sw=new Switch(this);sw.setChecked(privateMode);if(android.os.Build.VERSION.SDK_INT>=21){sw.setThumbTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{ACCENT,0xffbdbdc5}));sw.setTrackTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{0xff59467d,0xff494950}));}sw.setOnCheckedChangeListener((v,on)->{privateMode=on;getSharedPreferences(PREF,0).edit().putBoolean(PRIVATE_KEY,on).apply();});privacy.addView(sw,new LinearLayout.LayoutParams(dp(52),dp(48)));
 
-  body.addView(sectionLabel("HISTORY"));
-  LinearLayout history=col();history.setBackground(shape(PANEL2,16,0));pad(history,14,13,14,13);history.addView(label("Entries to keep",13,TEXT,true));
-  LinearLayout limits=row();limits.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(38));lp.topMargin=dp(10);history.addView(limits,lp);
+  body.addView(sectionLabel("History",28));
+  body.addView(label("Entries to keep",14,TEXT,false));
+  LinearLayout limits=row();limits.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams limitsP=new LinearLayout.LayoutParams(-1,dp(40));limitsP.topMargin=dp(10);body.addView(limits,limitsP);
   String[] names={"50","100","200","500","No limit"};
-  for(int i=0;i<names.length;i++){final int value=LIMITS[i];TextView chip=label(names[i],11,historyLimit==value?0xff17131f:TEXT,historyLimit==value);chip.setGravity(Gravity.CENTER);chip.setBackground(shape(historyLimit==value?ACCENT:0xff1d1e23,10,historyLimit==value?0:0xff45434c));LinearLayout.LayoutParams chipP=new LinearLayout.LayoutParams(0,-1,1);if(i>0)chipP.leftMargin=dp(5);limits.addView(chip,chipP);chip.setOnClickListener(v->{historyLimit=value;getSharedPreferences(PREF,0).edit().putInt(LIMIT_KEY,value).apply();enforceLimit();save();showSettings();});}
-  LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=dp(5);body.addView(history,hp);
+  for(int i=0;i<names.length;i++){final int value=LIMITS[i];boolean chosen=historyLimit==value;TextView chip=label(names[i],12,chosen?0xffe9ddff:TEXT,false);chip.setGravity(Gravity.CENTER);chip.setBackground(shape(chosen?0xff302744:BG,9,chosen?ACCENT:0xff696773));LinearLayout.LayoutParams chipP=new LinearLayout.LayoutParams(0,-1,1);if(i>0)chipP.leftMargin=dp(6);limits.addView(chip,chipP);chip.setOnClickListener(v->{historyLimit=value;getSharedPreferences(PREF,0).edit().putInt(LIMIT_KEY,value).apply();enforceLimit();save();showSettings();});}
 
-  body.addView(sectionLabel("BACKUP & RESTORE"));
-  LinearLayout backup=col();backup.setBackground(shape(PANEL2,16,0));pad(backup,12,4,12,4);
-  backup.addView(actionRow("↓","Import clipboard","Restore from a backup file",()->openImport()));
-  View sep=new View(this);sep.setBackgroundColor(0xff3a3a42);LinearLayout.LayoutParams sepP=new LinearLayout.LayoutParams(-1,dp(1));sepP.leftMargin=dp(48);sepP.rightMargin=dp(8);backup.addView(sep,sepP);
-  backup.addView(actionRow("↑","Export clipboard","Save your history to a file",()->openExport()));
-  LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,-2);bp.topMargin=dp(5);body.addView(backup,bp);
+  body.addView(sectionLabel("Backup & restore",28));
+  LinearLayout backup=col();backup.setBackground(shape(PANEL2,14,0));pad(backup,12,4,12,4);
+  backup.addView(actionRow("↓","Import","Import clips from a backup file",()->openImport()));
+  View divider=new View(this);divider.setBackgroundColor(0xff393941);LinearLayout.LayoutParams dividerP=new LinearLayout.LayoutParams(-1,dp(1));dividerP.leftMargin=dp(48);backup.addView(divider,dividerP);
+  backup.addView(actionRow("↑","Export","Export saved clips to a file",()->openExport()));
+  LinearLayout.LayoutParams backupP=new LinearLayout.LayoutParams(-1,-2);backupP.topMargin=dp(1);body.addView(backup,backupP);
 
-  TextView clear=label("▣   Clear history\n     Deletes all saved clipboard entries. This can't be undone.",12,0xffffe2e2,true);clear.setGravity(Gravity.CENTER_VERTICAL);clear.setBackground(shape(0xff702525,15,0));pad(clear,14,13,14,13);LinearLayout.LayoutParams clp=new LinearLayout.LayoutParams(-1,-2);clp.topMargin=dp(20);body.addView(clear,clp);
+  LinearLayout clear=row();clear.setGravity(Gravity.CENTER_VERTICAL);clear.setBackground(shape(0xff7d211f,16,0));pad(clear,16,15,16,15);
+  TextView deleteIcon=label("▣",20,0xffffdddd,true);deleteIcon.setGravity(Gravity.CENTER);clear.addView(deleteIcon,new LinearLayout.LayoutParams(dp(30),dp(30)));
+  LinearLayout clearText=col();TextView clearTitle=label("Clear history",14,0xffffe4e2,true);clearText.addView(clearTitle);TextView clearSub=label("Deletes all saved clipboard entries. This can't be undone.",11,0xffffc7c4,false);clearSub.setMaxWidth(dp(245));LinearLayout.LayoutParams clearSubP=new LinearLayout.LayoutParams(-2,-2);clearSubP.topMargin=dp(2);clearText.addView(clearSub,clearSubP);LinearLayout.LayoutParams clearTextP=new LinearLayout.LayoutParams(0,-2,1);clearTextP.leftMargin=dp(12);clear.addView(clearText,clearTextP);
+  LinearLayout.LayoutParams clearP=new LinearLayout.LayoutParams(-1,-2);clearP.topMargin=dp(22);body.addView(clear,clearP);
   clear.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Clear history?").setMessage("All saved clipboard entries will be deleted. Favorites will also be removed.").setNegativeButton("Cancel",null).setPositiveButton("Clear history",(d,w)->{entries.clear();selectedIds.clear();save();build();}).show());
   setContentView(page);
  }
- private TextView sectionLabel(String value){TextView t=label(value,10,ACCENT,true);t.setLetterSpacing(.12f);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(19);p.bottomMargin=dp(8);return t;}
- private LinearLayout actionRow(String symbol,String title,String subtitle,Runnable action){LinearLayout r=row();pad(r,4,10,4,10);TextView icon=label(symbol,20,ACCENT,true);icon.setGravity(Gravity.CENTER);r.addView(icon,new LinearLayout.LayoutParams(dp(38),dp(38)));LinearLayout text=col();text.addView(label(title,13,TEXT,true));TextView sub=label(subtitle,10,MUTED,false);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-2);sp.topMargin=dp(2);text.addView(sub,sp);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.leftMargin=dp(8);r.addView(text,p);TextView arrow=label("›",22,MUTED,false);r.addView(arrow);r.setOnClickListener(v->action.run());return r;}
+ private TextView sectionLabel(String value,int top){TextView t=label(value,11,ACCENT,true);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(top);p.bottomMargin=dp(8);return t;}
+ private LinearLayout actionRow(String symbol,String title,String subtitle,Runnable action){LinearLayout r=row();pad(r,2,10,2,10);TextView icon=label(symbol,20,ACCENT,true);icon.setGravity(Gravity.CENTER);r.addView(icon,new LinearLayout.LayoutParams(dp(36),dp(36)));LinearLayout text=col();text.addView(label(title,14,TEXT,false));TextView sub=label(subtitle,11,MUTED,false);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-2);sp.topMargin=dp(2);text.addView(sub,sp);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.leftMargin=dp(8);r.addView(text,p);TextView arrow=label("›",22,MUTED,false);r.addView(arrow);r.setOnClickListener(v->action.run());return r;}
  private void render(){
   if(list==null)return;allTab.setTextColor(favoritesOnly?MUTED:ACCENT);favTab.setTextColor(favoritesOnly?ACCENT:MUTED);list.removeAllViews();String q=search.getText().toString().trim().toLowerCase(Locale.ROOT);int shown=0;
   for(JSONObject o:new ArrayList<>(entries)){String value=o.optString("text","");if(favoritesOnly&&!o.optBoolean("favorite"))continue;if(!q.isEmpty()&&!value.toLowerCase(Locale.ROOT).contains(q))continue;shown++;addCard(o);}
