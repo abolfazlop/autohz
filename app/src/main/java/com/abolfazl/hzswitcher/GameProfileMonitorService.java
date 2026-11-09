@@ -348,7 +348,7 @@ public final class GameProfileMonitorService extends Service {
             int volume=prefs.getInt(gamePackage+".restore_volume",-1);
             int volumeMax=prefs.getInt(gamePackage+".restore_volume_max",-1);
             boolean displayOk=!prefs.getBoolean(gamePackage+".brightness_enabled",false);
-            if(prefs.getBoolean(gamePackage+".brightness_enabled",true)&&brightness>=0&&brightness<=255&&(mode==0||mode==1)){
+            if(prefs.getBoolean(gamePackage+".brightness_enabled",false)&&brightness>=0&&brightness<=255&&(mode==0||mode==1)){
                 RootHardwareController.Result display=RootHardwareController.run(
                     "settings --user 0 put system screen_brightness_mode 0 && "+
                     "settings --user 0 put system screen_brightness "+brightness+" && "+
@@ -357,9 +357,9 @@ public final class GameProfileMonitorService extends Service {
                     "[ \"$(settings --user 0 get system screen_brightness_mode)\" = \""+mode+"\" ]",7000);
                 displayOk=display.ok();
                 if(!displayOk)Log.e(TAG,"Brightness restore failed: "+display.output);
-            }else Log.e(TAG,"Saved brightness state invalid");
+            }else if(prefs.getBoolean(gamePackage+".brightness_enabled",false)) Log.e(TAG,"Saved brightness state invalid");
             boolean volumeOk=!prefs.getBoolean(gamePackage+".volume_enabled",false);
-            if(prefs.getBoolean(gamePackage+".volume_enabled",true)&&volume>=0&&volumeMax>0){
+            if(prefs.getBoolean(gamePackage+".volume_enabled",false)&&volume>=0&&volumeMax>0){
                 try{
                     AudioManager audio=(AudioManager)getSystemService(Context.AUDIO_SERVICE);
                     int target=Math.max(0,Math.min(volume,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)));
@@ -367,7 +367,7 @@ public final class GameProfileMonitorService extends Service {
                     volumeOk=audio.getStreamVolume(AudioManager.STREAM_MUSIC)==target;
                     if(!volumeOk)Log.e(TAG,"Volume restore mismatch target="+target+" actual="+audio.getStreamVolume(AudioManager.STREAM_MUSIC));
                 }catch(Exception e){Log.e(TAG,"Volume restore failed",e);}
-            }else Log.e(TAG,"Saved volume state invalid");
+            }else if(prefs.getBoolean(gamePackage+".volume_enabled",false)) Log.e(TAG,"Saved volume state invalid");
             final boolean displayRestored=displayOk;
             final boolean volumeRestored=volumeOk;
             boolean batterySaverRestored=false;
