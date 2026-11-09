@@ -5,6 +5,15 @@ android {
  defaultConfig { applicationId 'com.abolfazl.hzswitcher'; minSdk 26; targetSdk 34; versionCode 2; versionName '1.1.0' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = '17' }
+ sourceSets {
+  main {
+   // LSPosed classic entry point is packaged from assets/xposed_init.
+   assets.srcDirs += 'src/main/assets'
+   // libxposed API 102 discovers its entry point from META-INF/xposed/*.
+   // Android Gradle does not package this directory unless it is registered.
+   resources.srcDirs += 'src/main/resources'
+  }
+ }
 }
 dependencies {
     // Classic LSPosed entry point (provided by the framework at runtime).
