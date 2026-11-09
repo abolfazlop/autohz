@@ -231,10 +231,25 @@ public final class GameProfileMonitorService extends Service {
         return ok;
     }
 
+    /**
+     * Give profile slots a stable topology order across boots: lowest supported
+     * policy ceiling first (little -> big -> prime). Do not assume policy IDs
+     * or CPU numbers correspond to a particular SoC cluster.
+     */
+    private java.util.List<RootHardwareController.CpuPolicy> orderedCpuPolicies(){
+        java.util.List<RootHardwareController.CpuPolicy> policies=RootHardwareController.discoverCpuPolicies();
+        java.util.Collections.sort(policies,(a,b)->{
+            int byMax=Long.compare(a.hardwareMaxKhz,b.hardwareMaxKhz);
+            if(byMax!=0)return byMax;
+            return a.path.compareTo(b.path);
+        });
+        return policies;
+    }
+
     /** Apply only controls enabled by the saved game profile, using live kernel bounds. */
     private void applyGameHardwareProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
-        java.util.List<RootHardwareController.CpuPolicy> policies=RootHardwareController.discoverCpuPolicies();
+        java.util.List<RootHardwareController.CpuPolicy> policies=orderedCpuPolicies();
         String[] ids={"little","big","prime"};
         for(int i=0;i<policies.size()&&i<ids.length;i++){
             RootHardwareController.CpuPolicy p=policies.get(i);
