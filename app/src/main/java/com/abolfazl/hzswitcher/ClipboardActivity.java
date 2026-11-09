@@ -21,6 +21,8 @@ public final class ClipboardActivity extends Activity {
  private final ArrayList<JSONObject> entries=new ArrayList<>(); private final HashSet<String> selectedIds=new HashSet<>(); private LinearLayout list,root; private EditText search;
  private boolean favoritesOnly=false,privateMode=false; private int historyLimit=200; private ClipboardManager clipboard;
  private TextView allTab,favTab,status; private android.os.Handler handler=new android.os.Handler();
+ private static final Uri STORE_URI=Uri.parse("content://com.abolfazl.hzswitcher.clipboard/clips");
+ private android.database.ContentObserver storeObserver;
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
  private GradientDrawable shape(int c,int r,int s){GradientDrawable d=new GradientDrawable();d.setColor(c);d.setCornerRadius(dp(r));if(s!=0)d.setStroke(dp(1),s);return d;}
  private TextView label(String s,int z,int c,boolean b){TextView t=new TextView(this);t.setText(s);t.setTextSize(z);t.setTextColor(c);t.setTypeface(Typeface.create("sans-serif",b?1:0));return t;}
@@ -28,14 +30,18 @@ public final class ClipboardActivity extends Activity {
  private LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
  private void pad(View v,int a,int b,int c,int d){v.setPadding(dp(a),dp(b),dp(c),dp(d));}
  private Button button(String s){Button b=new Button(this);b.setText(s);b.setTextSize(12);b.setAllCaps(false);b.setTextColor(TEXT);b.setMinHeight(dp(42));b.setMinimumHeight(dp(42));b.setPadding(dp(8),0,dp(8),0);b.setStateListAnimator(null);b.setBackground(shape(PANEL2,14,0xff39343f));return b;}
- @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(0xff101114);if(android.os.Build.VERSION.SDK_INT>=29){getWindow().setStatusBarContrastEnforced(false);getWindow().setNavigationBarContrastEnforced(false);}load();build();clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);if(clipboard!=null){clipboard.addPrimaryClipChangedListener(listener);captureCurrent();}}
+ @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(0xff101114);if(android.os.Build.VERSION.SDK_INT>=29){getWindow().setStatusBarContrastEnforced(false);getWindow().setNavigationBarContrastEnforced(false);}load();build();clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);storeObserver=new android.database.ContentObserver(handler){@Override public void onChange(boolean selfChange,Uri uri){handler.post(()->{reloadFromStore();if(list!=null)render();});}};
+  getContentResolver().registerContentObserver(STORE_URI,true,storeObserver);
+  if(clipboard!=null){} }
  private final ClipboardManager.OnPrimaryClipChangedListener listener=()->handler.post(this::captureCurrent);
  @Override protected void onDestroy(){if(clipboard!=null)clipboard.removePrimaryClipChangedListener(listener);handler.removeCallbacksAndMessages(null);super.onDestroy();}
  private void load(){android.content.SharedPreferences p=getSharedPreferences(PREF,0);historyLimit=p.getInt(LIMIT_KEY,200);privateMode=p.getBoolean(PRIVATE_KEY,false);try{JSONArray a=ClipboardStore.read(this);if(a.length()==0){a=new JSONArray(p.getString(KEY,"[]"));if(a.length()>0)ClipboardStore.write(this,a);}for(int i=0;i<a.length();i++)entries.add(a.getJSONObject(i));}catch(Exception ignored){}}
  private void save(){JSONArray a=new JSONArray();for(JSONObject o:entries)a.put(o);ClipboardStore.write(this,a);getSharedPreferences(PREF,0).edit().putString(KEY,a.toString()).apply();}
  private void enforceLimit(){if(historyLimit==0)return;int count=0;for(JSONObject o:entries)if(!o.optBoolean("favorite"))count++;for(int i=entries.size()-1;i>=0&&count>historyLimit;i--)if(!entries.get(i).optBoolean("favorite")){entries.remove(i);count--;}}
- private void captureCurrent(){if(privateMode||clipboard==null)return;try{if(!clipboard.hasPrimaryClip())return;ClipData d=clipboard.getPrimaryClip();if(d==null||d.getItemCount()==0)return;CharSequence c=d.getItemAt(0).getText();if(c!=null)addClip(c.toString(),System.currentTimeMillis());}catch(Exception ignored){}}
- private void addClip(String text,long time){if(privateMode||text==null||text.trim().isEmpty())return;for(JSONObject o:entries)if(o.optString("text").equals(text)){try{o.put("active",true);for(JSONObject x:entries)if(x!=o)x.put("active",false);}catch(Exception ignored){}save();render();return;}try{for(JSONObject o:entries)o.put("active",false);JSONObject n=new JSONObject();n.put("id",UUID.randomUUID().toString());n.put("text",text);n.put("time",time);n.put("favorite",false);n.put("active",true);entries.add(0,n);enforceLimit();save();render();}catch(Exception ignored){}}
+ // Clipboard capture is performed only by the LSPosed system_server hook.
+ // This Activity observes ClipboardProvider changes and never writes stale
+ // primary-clip snapshots back over the authoritative history file.
+
  private void build(){
   root=col();root.setBackgroundColor(BG);pad(root,16,12,16,10);
   LinearLayout header=row();
