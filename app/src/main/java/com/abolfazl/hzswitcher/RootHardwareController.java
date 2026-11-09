@@ -36,19 +36,27 @@ public final class RootHardwareController {
         }
     }
 
-    /** Executes a bounded root command through KernelSU/Magisk/APatch's su interface. */
+    /** Executes a bounded root command. Output collection cannot block the timeout. */
     public static Result run(String script, long timeoutMs) {
         Process process=null;
+        final ByteArrayOutputStream out=new ByteArrayOutputStream();
+        Thread reader=null;
         try {
             process=new ProcessBuilder("su","-c",script).redirectErrorStream(true).start();
-            ByteArrayOutputStream out=new ByteArrayOutputStream();
-            // Read synchronously with a bounded wait; sysfs probes are short.
-            try(InputStream in=process.getInputStream()) {
-                byte[] b=new byte[4096]; int n;
-                while((n=in.read(b))!=-1) out.write(b,0,n);
+            final InputStream in=process.getInputStream();
+            reader=new Thread(()->{
+                try(InputStream stream=in){
+                    byte[] buffer=new byte[2048];int count;
+                    while((count=stream.read(buffer))!=-1)out.write(buffer,0,count);
+                }catch(IOException ignored){}
+            },"PulseXtRootOutput");
+            reader.setDaemon(true);reader.start();
+            if(!process.waitFor(timeoutMs,TimeUnit.MILLISECONDS)){
+                process.destroy();
+                if(!process.waitFor(300,TimeUnit.MILLISECONDS))process.destroyForcibly();
+                return new Result(124,"root command timed out");
             }
-            boolean ended=process.waitFor(timeoutMs,TimeUnit.MILLISECONDS);
-            if(!ended){process.destroyForcibly();return new Result(124,"root command timed out");}
+            reader.join(500);
             return new Result(process.exitValue(),out.toString("UTF-8"));
         } catch(Exception e) {
             if(process!=null)process.destroyForcibly();
