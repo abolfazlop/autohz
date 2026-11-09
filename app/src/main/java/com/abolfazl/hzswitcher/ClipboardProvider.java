@@ -33,66 +33,22 @@ public final class ClipboardProvider extends ContentProvider {
                     getContext().getSharedPreferences("pulsext_clipboard", 0);
                 if (prefs.getBoolean("private_mode", false)) return null;
 
-                JSONArray entries = ClipboardStore.read(getContext());
-                int existing = -1;
-                for (int i = 0; i < entries.length(); i++) {
-                    JSONObject item = entries.optJSONObject(i);
-                    if (item != null && text.equals(item.optString("text"))) {
-                        existing = i;
-                        break;
-                    }
-                }
-
-                JSONObject current;
-                if (existing >= 0) {
-                    current = entries.getJSONObject(existing);
-                    entries.remove(existing);
-                    Long capturedAt = values.getAsLong("captured_at");
-                    current.put("time", capturedAt == null
-                        ? System.currentTimeMillis() : capturedAt);
-                } else {
-                    current = new JSONObject();
-                    current.put("id", UUID.randomUUID().toString());
-                    current.put("text", text);
-                    Long capturedAt = values.getAsLong("captured_at");
-                    current.put("time", capturedAt == null
-                        ? System.currentTimeMillis() : capturedAt);
-                    current.put("favorite", false);
-                }
-                current.put("active", true);
-                for (int i = 0; i < entries.length(); i++) {
-                    JSONObject item = entries.optJSONObject(i);
-                    if (item != null) item.put("active", false);
-                }
-                // Most recently copied clip is always first. Distinct clips
-                // remain separate; copying an older clip promotes that item.
-                entries.put(0, current);
-
+                Long capturedAt = values.getAsLong("captured_at");
+                long timestamp = capturedAt == null
+                    ? System.currentTimeMillis() : capturedAt;
                 int limit = prefs.getInt("history_limit", 200);
-                if (limit > 0) {
-                    int count = 0;
-                    for (int i = 0; i < entries.length(); i++) {
-                        if (!entries.getJSONObject(i).optBoolean("favorite")) count++;
-                    }
-                    for (int i = entries.length() - 1; i >= 0 && count > limit; i--) {
-                        if (!entries.getJSONObject(i).optBoolean("favorite")) {
-                            entries.remove(i);
-                            count--;
-                        }
-                    }
-                }
-                if (!ClipboardStore.write(getContext(), entries)) {
-                    Log.e(TAG, "Failed writing clipboard history file");
+
+                // Append directly to SQLite in one transaction. Do not load a
+                // JSON snapshot, modify it in memory, or rewrite the full list.
+                if (!ClipboardStore.append(getContext(), text, timestamp, limit)) {
+                    Log.e(TAG, "Atomic SQLite append failed");
                     return null;
                 }
-                // Keep a compatibility mirror for older screens/settings, but the
-                // JSON file is authoritative and is always read first by the UI.
-                prefs.edit().putString("entries", entries.toString()).apply();
-                Log.i(TAG, "Saved clipboard text to " + ClipboardStore.FILE_NAME
-                    + " (entries=" + entries.length() + ")");
-                // Wake any open ClipboardActivity immediately after the durable write.
-                getContext().getContentResolver().notifyChange(uri, null);
-                return uri;
+
+                Uri changed = Uri.parse("content://com.abolfazl.hzswitcher.clipboard/clips");
+                Log.i(TAG, "Appended clipboard event to SQLite database");
+                getContext().getContentResolver().notifyChange(changed, null);
+                return changed;
             } catch (Throwable error) {
                 Log.e(TAG, "Could not append clipboard history", error);
                 return null;
