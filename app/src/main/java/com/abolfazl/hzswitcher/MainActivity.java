@@ -253,6 +253,9 @@ public class MainActivity extends Activity {
     private String selectedGamePackage, selectedGameLabel;
     private final Map<String,String> gameLabels = new LinkedHashMap<>();
     private android.content.SharedPreferences gamePrefs;
+    private volatile java.util.List<RootHardwareController.CpuPolicy> detectedCpuPolicies=java.util.Collections.emptyList();
+    private volatile java.util.List<RootHardwareController.GpuDevice> detectedGpuDevices=java.util.Collections.emptyList();
+    private volatile boolean hardwareScanStarted=false, hardwareScanDone=false;
 
     private void showGameProfiles(){
         gamePrefs=getSharedPreferences("game_profiles",MODE_PRIVATE);
@@ -425,6 +428,21 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
         launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameDisplaySound(pkg);applyGameQuickToggles(pkg);Intent monitor=new Intent(this,GameProfileMonitorService.class);monitor.putExtra("game_package",pkg);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
+        if(!hardwareScanStarted){
+            hardwareScanStarted=true;
+            executor.execute(()->{
+                java.util.List<RootHardwareController.CpuPolicy> cpus=RootHardwareController.discoverCpuPolicies();
+                java.util.Collections.sort(cpus,(a,b)->{
+                    int m=Long.compare(a.hardwareMaxKhz,b.hardwareMaxKhz);
+                    return m!=0?m:a.path.compareTo(b.path);
+                });
+                java.util.List<RootHardwareController.GpuDevice> gpus=RootHardwareController.discoverGpuDevices();
+                detectedCpuPolicies=cpus;detectedGpuDevices=gpus;hardwareScanDone=true;
+                runOnUiThread(()->{
+                    if(pkg.equals(selectedGamePackage))showGameEditor(pkg,label);
+                });
+            });
+        }
     }
 
     private void addGameQuickToggles(LinearLayout parent,String pkg){
@@ -667,44 +685,67 @@ public class MainActivity extends Activity {
         catch(Exception e){return pkg;}
     }
 
+    private int toMhz(long value){
+        if(value>=1000000L)return (int)Math.max(1,Math.min(100000,value/1000000L));
+        if(value>=1000L)return (int)Math.max(1,Math.min(100000,value/1000L));
+        return (int)Math.max(1,Math.min(100000,value));
+    }
+
     private void addClusterControls(LinearLayout parent,String pkg,String id,String heading,String hardware,int defaultMax,boolean manualAllowed){
         LinearLayout section=column();pad(section,14,12,14,12);section.setBackground(shape(PANEL,16,0xFF292B30));
         LinearLayout.LayoutParams sectionLp=new LinearLayout.LayoutParams(-1,-2);sectionLp.topMargin=dp(9);parent.addView(section,sectionLp);
         TextView title=text("•  "+heading,13,ACCENT,true);section.addView(title);
-        addClusterFrequency(section,pkg,id,"Maximum "+hardware+" frequency","max",hardware.equals("GPU")?100:300,hardware.equals("GPU")?3000:5000,defaultMax,manualAllowed);
-        addClusterFrequency(section,pkg,id,"Minimum "+hardware+" frequency","min",hardware.equals("GPU")?100:300,hardware.equals("GPU")?3000:5000,hardware.equals("GPU")?100:300,manualAllowed);
+        int minMhz,maxMhz;
+        String[] governors;
+        if(hardware.equals("CPU")){
+            int index=id.equals("little")?0:id.equals("big")?1:2;
+            if(!hardwareScanDone||index>=detectedCpuPolicies.size()){
+                section.addView(text(hardwareScanDone?"This CPU cluster is not exposed by the kernel.":"Detecting CPUFreq policies…",11,MUTED,false));
+                return;
+            }
+            RootHardwareController.CpuPolicy policy=detectedCpuPolicies.get(index);
+            minMhz=toMhz(policy.hardwareMinKhz);maxMhz=toMhz(policy.hardwareMaxKhz);
+            governors=policy.governors==null?new String[0]:policy.governors.trim().split("\\s+");
+            TextView detected=text("Detected: "+policy.relatedCpus+" • "+minMhz+"–"+maxMhz+" MHz",10,MUTED,false);
+            section.addView(detected);
+        }else{
+            if(!hardwareScanDone||detectedGpuDevices.isEmpty()){
+                section.addView(text(hardwareScanDone?"GPU devfreq controls are not exposed by this kernel.":"Detecting GPU devfreq…",11,MUTED,false));
+                return;
+            }
+            RootHardwareController.GpuDevice gpu=detectedGpuDevices.get(0);
+            minMhz=toMhz(gpu.hardwareMinHz);maxMhz=toMhz(gpu.hardwareMaxHz);
+            governors=gpu.governors==null?new String[0]:gpu.governors.trim().split("\\s+");
+            section.addView(text("Detected: "+(gpu.name.isEmpty()?gpu.path:gpu.name)+" • "+minMhz+"–"+maxMhz+" MHz",10,MUTED,false));
+        }
+        if(maxMhz<minMhz){section.addView(text("Invalid kernel frequency table; controls disabled.",11,MUTED,false));return;}
+        addClusterFrequency(section,pkg,id,"Maximum "+hardware+" frequency","max",minMhz,maxMhz,Math.min(defaultMax,maxMhz),manualAllowed);
+        addClusterFrequency(section,pkg,id,"Minimum "+hardware+" frequency","min",minMhz,maxMhz,minMhz,manualAllowed);
         TextView governorLabel=text(hardware+" governor",12,TEXT,true);LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(-1,-2);glp.topMargin=dp(12);section.addView(governorLabel,glp);
-        Spinner governors=new Spinner(this);
-        governors.setBackground(shape(0xFF49336A,10,0xFF8F65D8));
-        if(android.os.Build.VERSION.SDK_INT>=16)governors.setPopupBackgroundDrawable(shape(0xFF211A2D,12,0xFF493765));
-        String[] options={"powersave","schedutil","performance","ondemand","conservative"};
-        ArrayAdapter<String> adapter=new ArrayAdapter<String>(this,android.R.layout.simple_spinner_item,options){
-            private TextView styled(String value,boolean dropdown){
-                TextView item=new TextView(MainActivity.this);
-                item.setText(value);item.setTextColor(0xFFFFFFFF);item.setTextSize(14);
-                item.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                item.setPadding(dp(14),dp(10),dp(14),dp(10));
-                if(dropdown)item.setBackgroundColor(0xFF211A2D);
-                return item;
-            }
-            @Override public View getView(int position,View convertView,ViewGroup parent){
-                return styled(getItem(position),false);
-            }
-            @Override public View getDropDownView(int position,View convertView,ViewGroup parent){
-                return styled(getItem(position),true);
-            }
+        Spinner spinner=new Spinner(this);
+        spinner.setBackground(shape(0xFF49336A,10,0xFF8F65D8));
+        if(android.os.Build.VERSION.SDK_INT>=16)spinner.setPopupBackgroundDrawable(shape(0xFF211A2D,12,0xFF493765));
+        ArrayList<String> supported=new ArrayList<>();for(String g:governors)if(!g.trim().isEmpty())supported.add(g.trim());
+        if(supported.isEmpty())supported.add("Kernel default (unchanged)");
+        ArrayAdapter<String> adapter=new ArrayAdapter<String>(this,android.R.layout.simple_spinner_item,supported){
+            private TextView styled(String value,boolean dropdown){TextView item=new TextView(MainActivity.this);item.setText(value);item.setTextColor(0xFFFFFFFF);item.setTextSize(14);item.setGravity(Gravity.CENTER_VERTICAL);item.setPadding(dp(14),dp(10),dp(14),dp(10));if(dropdown)item.setBackgroundColor(0xFF211A2D);return item;}
+            @Override public View getView(int p,View v,ViewGroup g){return styled(getItem(p),false);}
+            @Override public View getDropDownView(int p,View v,ViewGroup g){return styled(getItem(p),true);}
         };
-        governors.setAdapter(adapter);governors.setEnabled(manualAllowed);
-        String saved=gamePrefs.getString(profileKey(pkg,id+"_governor"),"powersave");
-        int selected=0;for(int i=0;i<options.length;i++)if(options[i].equals(saved))selected=i;
-        governors.setSelection(selected);section.addView(governors);
-        governors.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){
+        spinner.setAdapter(adapter);spinner.setEnabled(manualAllowed);
+        String saved=gamePrefs.getString(profileKey(pkg,id+"_governor"),"");
+        int selected=supported.indexOf(saved);spinner.setSelection(Math.max(0,selected));section.addView(spinner);
+        spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){
             public void onNothingSelected(android.widget.AdapterView<?> p){}
-            public void onItemSelected(android.widget.AdapterView<?> p,View v,int pos,long rowId){gamePrefs.edit().putString(profileKey(pkg,id+"_governor"),options[pos]).apply();}
+            public void onItemSelected(android.widget.AdapterView<?> p,View v,int pos,long rowId){
+                String value=supported.get(pos);
+                if(!value.startsWith("Kernel default"))gamePrefs.edit().putString(profileKey(pkg,id+"_governor"),value).apply();
+                else gamePrefs.edit().remove(profileKey(pkg,id+"_governor")).apply();
+            }
         });
         TextView paramsLabel=text("Governor parameters",12,TEXT,true);LinearLayout.LayoutParams plp=new LinearLayout.LayoutParams(-1,-2);plp.topMargin=dp(12);section.addView(paramsLabel,plp);
         EditText params=new EditText(this);params.setSingleLine(true);params.setTextSize(12);params.setTextColor(TEXT);params.setHintTextColor(MUTED);params.setHint("Optional parameters");
-        params.setText(gamePrefs.getString(profileKey(pkg,id+"_params"),""));section.addView(params);
+        params.setText(gamePrefs.getString(profileKey(pkg,id+"_params"),""));params.setEnabled(manualAllowed);section.addView(params);
         params.setOnFocusChangeListener((v,hasFocus)->{if(!hasFocus)gamePrefs.edit().putString(profileKey(pkg,id+"_params"),params.getText().toString()).apply();});
     }
 
