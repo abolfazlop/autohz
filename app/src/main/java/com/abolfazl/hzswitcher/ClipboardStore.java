@@ -41,7 +41,7 @@ public final class ClipboardStore {
             SQLiteDatabase database = db(context).getReadableDatabase();
             try (Cursor cursor = database.query("clips",
                     new String[]{"clip_id","content","timestamp","favorite","active"},
-                    null,null,null,null,"timestamp DESC")) {
+                    null,null,null,null,"timestamp DESC, rowid DESC")) {
                 while (cursor.moveToNext()) {
                     JSONObject item = new JSONObject();
                     item.put("id", cursor.getString(0));
