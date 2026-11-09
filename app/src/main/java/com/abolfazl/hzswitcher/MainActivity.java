@@ -426,7 +426,7 @@ public class MainActivity extends Activity {
 
         Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
-        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameDisplaySound(pkg);applyGameQuickToggles(pkg);Intent monitor=new Intent(this,GameProfileMonitorService.class);monitor.putExtra("game_package",pkg);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
+        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameQuickToggles(pkg);Intent monitor=new Intent(this,GameProfileMonitorService.class);monitor.putExtra("game_package",pkg);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
         showPage("Game Profile",c);
         if(!hardwareScanStarted){
             hardwareScanStarted=true;
@@ -589,24 +589,8 @@ public class MainActivity extends Activity {
     }
 
     private void applyGameDisplaySound(String pkg){
-        int selectedPercent=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"brightness"),70)));
-        int brightnessValue=Math.round(selectedPercent*255f/100f);
-        int volumePercent=Math.max(0,Math.min(100,gamePrefs.getInt(profileKey(pkg,"volume"),70)));
-        RootHardwareController.Result r=RootHardwareController.run(
-            "settings put system screen_brightness_mode 0 && "+
-            "settings put system screen_brightness "+brightnessValue+" && "+
-            "[ \"$(settings get system screen_brightness)\" = \""+brightnessValue+"\" ]",8000);
-        try{
-            android.media.AudioManager audio=(android.media.AudioManager)getSystemService(android.content.Context.AUDIO_SERVICE);
-            int max=audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
-            int target=Math.round(volumePercent*max/100f);
-            audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC,target,0);
-            int actual=audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
-            if(actual!=target)android.util.Log.e("PulseXt","Media volume mismatch expected="+target+" actual="+actual);
-        }catch(Exception e){
-            android.util.Log.e("PulseXt","Game media volume apply failed",e);
-        }
-        if(!r.ok())android.util.Log.e("PulseXt","Game brightness apply failed for "+selectedPercent+"%: "+r.output);
+        // Intentionally no-op: GameProfileMonitorService applies display/sound
+        // only after checking opt-in switches and capturing the original state.
     }
 
     private void applyGameQuickToggles(String pkg){
@@ -780,7 +764,7 @@ public class MainActivity extends Activity {
         LinearLayout line=row();line.setGravity(Gravity.CENTER_VERTICAL);pad(line,12,7,12,7);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(48));lp.topMargin=dp(6);parent.addView(line,lp);
         TextView label=text(title,13,TEXT,true);line.addView(label,new LinearLayout.LayoutParams(0,-2,1));
-        Switch toggle=new Switch(this);toggle.setChecked(gamePrefs.getBoolean(profileKey(pkg,key),true));line.addView(toggle);
+        Switch toggle=new Switch(this);toggle.setChecked(gamePrefs.getBoolean(profileKey(pkg,key),false));line.addView(toggle);
         toggle.setOnCheckedChangeListener((button,checked)->gamePrefs.edit().putBoolean(profileKey(pkg,key),checked).apply());
     }
 
