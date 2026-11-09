@@ -1,5 +1,5 @@
 package com.abolfazl.hzswitcher;
-import android.content.*;import android.net.Uri;import java.lang.reflect.Method;import java.util.concurrent.*;import de.robv.android.xposed.*;import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
+import android.content.*;import android.net.Uri;import java.lang.reflect.Method;import java.util.*;import java.util.concurrent.*;import de.robv.android.xposed.*;import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 /** LSPosed hook capturing successful system clipboard writes. */
 public final class ClipboardHook implements IXposedHookLoadPackage {
  private static final String TAG="PulseXt Clipboard";private static final Uri BRIDGE=Uri.parse("content://com.abolfazl.hzswitcher.clipboard/clips");
