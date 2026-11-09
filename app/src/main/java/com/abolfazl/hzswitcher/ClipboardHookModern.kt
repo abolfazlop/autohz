@@ -45,7 +45,7 @@ class ClipboardHookModern : XposedModule() {
 
     override fun onPackageLoaded(param: PackageLoadedParam) {
         super.onPackageLoaded(param)
-        if (param.packageName == "com.abolfazl.hzswitcher") {
+        if (param.packageName.startsWith("com.abolfazl.hzswitcher")) {
             try {
                 val status = param.defaultClassLoader.loadClass("com.abolfazl.hzswitcher.HookStatus")
                 status.getField("moduleHooked").setBoolean(null, true)
