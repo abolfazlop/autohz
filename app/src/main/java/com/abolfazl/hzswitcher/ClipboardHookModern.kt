@@ -11,6 +11,7 @@ private const val TAG = "PulseXt Clipboard (modern)"
 class ClipboardHookModern : XposedModule() {
     override fun onSystemServerStarting(param: SystemServerStartingParam) {
         super.onSystemServerStarting(param)
+        Log.i(TAG, "system_server callback reached; classLoader=${param.classLoader}")
         try {
             val methods = ClipCapture.findSetPrimaryClipMethods(param.classLoader) {
                 Log.w(TAG, it)
@@ -19,6 +20,7 @@ class ClipboardHookModern : XposedModule() {
                 Log.w(TAG, "No ClipboardService#setPrimaryClip overloads found; capture hook not installed")
                 return
             }
+            Log.i(TAG, "Found ${methods.size} setPrimaryClip target(s)")
             methods.forEach { method ->
                 try {
                     hook(method)
