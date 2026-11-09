@@ -685,9 +685,14 @@ public class MainActivity extends Activity {
         catch(Exception e){return pkg;}
     }
 
-    private int toMhz(long value){
-        if(value>=1000000L)return (int)Math.max(1,Math.min(100000,value/1000000L));
-        if(value>=1000L)return (int)Math.max(1,Math.min(100000,value/1000L));
+    // CPUFreq sysfs ABI reports all cpuinfo/scaling frequency values in kHz.
+    private int cpuKhzToMhz(long khz){
+        return (int)Math.max(1,Math.min(100000,khz/1000L));
+    }
+    // Devfreq vendor drivers are inconsistent: values may be Hz, kHz or MHz.
+    private int gpuFreqToMhz(long value){
+        if(value>=100000000L)return (int)Math.max(1,Math.min(100000,value/1000000L));
+        if(value>=100000L)return (int)Math.max(1,Math.min(100000,value/1000L));
         return (int)Math.max(1,Math.min(100000,value));
     }
 
@@ -704,7 +709,7 @@ public class MainActivity extends Activity {
                 return;
             }
             RootHardwareController.CpuPolicy policy=detectedCpuPolicies.get(index);
-            minMhz=toMhz(policy.hardwareMinKhz);maxMhz=toMhz(policy.hardwareMaxKhz);
+            minMhz=cpuKhzToMhz(policy.hardwareMinKhz);maxMhz=cpuKhzToMhz(policy.hardwareMaxKhz);
             governors=policy.governors==null?new String[0]:policy.governors.trim().split("\\s+");
             TextView detected=text("Detected: "+policy.relatedCpus+" • "+minMhz+"–"+maxMhz+" MHz",10,MUTED,false);
             section.addView(detected);
@@ -714,7 +719,7 @@ public class MainActivity extends Activity {
                 return;
             }
             RootHardwareController.GpuDevice gpu=detectedGpuDevices.get(0);
-            minMhz=toMhz(gpu.hardwareMinHz);maxMhz=toMhz(gpu.hardwareMaxHz);
+            minMhz=gpuFreqToMhz(gpu.hardwareMinHz);maxMhz=gpuFreqToMhz(gpu.hardwareMaxHz);
             governors=gpu.governors==null?new String[0]:gpu.governors.trim().split("\\s+");
             section.addView(text("Detected: "+(gpu.name.isEmpty()?gpu.path:gpu.name)+" • "+minMhz+"–"+maxMhz+" MHz",10,MUTED,false));
         }
