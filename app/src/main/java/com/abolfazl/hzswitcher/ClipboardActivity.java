@@ -81,7 +81,13 @@ public final class ClipboardActivity extends Activity {
   LinearLayout top=row();
   top.addView(label(relativeTime(o.optLong("time")),11,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));
   if(o.optBoolean("active"))top.addView(label("●  On clipboard",11,ACCENT,true));
-  if(o.optBoolean("favorite")){TextView star=label("★",16,ACCENT,true);LinearLayout.LayoutParams starP=new LinearLayout.LayoutParams(dp(25),-2);starP.leftMargin=dp(8);top.addView(star,starP);}
+  TextView star=label(o.optBoolean("favorite")?"★":"☆",19,o.optBoolean("favorite")?ACCENT:MUTED,true);
+  star.setGravity(Gravity.CENTER);
+  star.setContentDescription(o.optBoolean("favorite")?"Remove from favorites":"Add to favorites");
+  LinearLayout.LayoutParams starP=new LinearLayout.LayoutParams(dp(32),dp(30));
+  starP.leftMargin=dp(6);
+  top.addView(star,starP);
+  star.setOnClickListener(v->{try{o.put("favorite",!o.optBoolean("favorite"));save();render();Toast.makeText(this,o.optBoolean("favorite")?"Added to favorites":"Removed from favorites",Toast.LENGTH_SHORT).show();}catch(Exception ignored){}});
   card.addView(top);
   TextView content=label(o.optString("text"),15,TEXT,false);content.setMaxLines(7);content.setEllipsize(android.text.TextUtils.TruncateAt.END);
   LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2);tp.topMargin=dp(8);card.addView(content,tp);
