@@ -84,7 +84,7 @@ public final class GameProfileMonitorService extends Service {
 
     private void applyDisplaySoundProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
-        if(prefs.getBoolean(pkg+".brightness_enabled",true)){
+        if(prefs.getBoolean(pkg+".brightness_enabled",false)){
             int percent=Math.max(0,Math.min(100,prefs.getInt(pkg+".brightness",70)));
             int target=Math.round(percent*255f/100f);
             RootHardwareController.Result r=RootHardwareController.run(
@@ -92,7 +92,7 @@ public final class GameProfileMonitorService extends Service {
                 " && [ \"$(settings --user 0 get system screen_brightness)\" = \""+target+"\" ]",7000);
             Log.i(TAG,"Game brightness "+percent+"% result="+r.output+" ok="+r.ok());
         }
-        if(prefs.getBoolean(pkg+".volume_enabled",true)){
+        if(prefs.getBoolean(pkg+".volume_enabled",false)){
             int percent=Math.max(0,Math.min(100,prefs.getInt(pkg+".volume",70)));
             try{
                 AudioManager audio=(AudioManager)getSystemService(Context.AUDIO_SERVICE);
@@ -347,7 +347,7 @@ public final class GameProfileMonitorService extends Service {
             int batterySaver=prefs.getInt(gamePackage+".restore_battery_saver",-1);
             int volume=prefs.getInt(gamePackage+".restore_volume",-1);
             int volumeMax=prefs.getInt(gamePackage+".restore_volume_max",-1);
-            boolean displayOk=!prefs.getBoolean(gamePackage+".brightness_enabled",true);
+            boolean displayOk=!prefs.getBoolean(gamePackage+".brightness_enabled",false);
             if(prefs.getBoolean(gamePackage+".brightness_enabled",true)&&brightness>=0&&brightness<=255&&(mode==0||mode==1)){
                 RootHardwareController.Result display=RootHardwareController.run(
                     "settings --user 0 put system screen_brightness_mode 0 && "+
@@ -358,7 +358,7 @@ public final class GameProfileMonitorService extends Service {
                 displayOk=display.ok();
                 if(!displayOk)Log.e(TAG,"Brightness restore failed: "+display.output);
             }else Log.e(TAG,"Saved brightness state invalid");
-            boolean volumeOk=!prefs.getBoolean(gamePackage+".volume_enabled",true);
+            boolean volumeOk=!prefs.getBoolean(gamePackage+".volume_enabled",false);
             if(prefs.getBoolean(gamePackage+".volume_enabled",true)&&volume>=0&&volumeMax>0){
                 try{
                     AudioManager audio=(AudioManager)getSystemService(Context.AUDIO_SERVICE);
