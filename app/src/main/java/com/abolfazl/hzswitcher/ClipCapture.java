@@ -4,8 +4,9 @@ import android.content.ClipData;
 import android.content.ContentValues;
 import android.content.Context;
 import android.net.Uri;
-
+import android.util.Log;
 import java.lang.reflect.Method;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -15,13 +16,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
-/** Shared implementation copied from ClipVault's system_server capture pipeline. */
+/** System-server clipboard capture and ordered delivery to PulseXt. */
 public final class ClipCapture {
+    private static final String TAG = "PulseXt ClipCapture";
     private static final Uri CONTENT_URI =
         Uri.parse("content://com.abolfazl.hzswitcher.clipboard/clips");
     private static volatile Context cachedSystemContext;
-
-    // A single worker preserves clipboard-write order across the provider IPC.
     private static final ExecutorService DELIVERY = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "PulseXt-clipboard-delivery");
         thread.setDaemon(true);
@@ -30,36 +30,59 @@ public final class ClipCapture {
 
     private ClipCapture() {}
 
-    /** Find every setPrimaryClip overload on ClipboardService and nested classes. */
+    /** Search service implementation classes recursively for every clipboard setter. */
     public static List<Method> findSetPrimaryClipMethods(ClassLoader loader,
                                                           Consumer<String> logError) {
-        Class<?> serviceClass;
-        try {
-            serviceClass = Class.forName(
-                "com.android.server.clipboard.ClipboardService", false, loader);
-        } catch (Throwable error) {
-            logError.accept("ClipboardService class not found: " + error);
+        Class<?> serviceClass = null;
+        String[] names = {
+            "com.android.server.clipboard.ClipboardService",
+            "com.android.server.ClipboardService"
+        };
+        for (String name : names) {
+            try {
+                serviceClass = Class.forName(name, false, loader);
+                break;
+            } catch (Throwable ignored) { }
+        }
+        if (serviceClass == null) {
+            logError.accept("ClipboardService not found; loader=" + String.valueOf(loader));
             return new ArrayList<>();
         }
 
-        List<Class<?>> candidates = new ArrayList<>();
-        candidates.add(serviceClass);
-        candidates.addAll(Arrays.asList(serviceClass.getDeclaredClasses()));
+        ArrayDeque<Class<?>> queue = new ArrayDeque<>();
+        Set<Class<?>> visited = new HashSet<>();
+        queue.add(serviceClass);
+        while (!queue.isEmpty()) {
+            Class<?> type = queue.removeFirst();
+            if (!visited.add(type)) continue;
+            try {
+                for (Class<?> nested : type.getDeclaredClasses()) queue.addLast(nested);
+            } catch (Throwable error) {
+                logError.accept("Cannot inspect nested classes of " + type.getName() + ": " + error);
+            }
+            Class<?> parent = type.getSuperclass();
+            if (parent != null && parent != Object.class) queue.addLast(parent);
+        }
 
         Set<String> seen = new HashSet<>();
         List<Method> methods = new ArrayList<>();
-        for (Class<?> candidate : candidates) {
-            for (Method method : candidate.getDeclaredMethods()) {
-                if (!"setPrimaryClip".equals(method.getName())) continue;
-                String signature = candidate.getName() + "#" + method.getName()
-                    + Arrays.toString(method.getParameterTypes());
-                if (!seen.add(signature)) continue;
-                try {
-                    method.setAccessible(true);
-                    methods.add(method);
-                } catch (Throwable error) {
-                    logError.accept("Could not access " + method + ": " + error);
+        for (Class<?> type : visited) {
+            try {
+                for (Method method : type.getDeclaredMethods()) {
+                    if (!"setPrimaryClip".equals(method.getName())) continue;
+                    String signature = type.getName() + "#" + method.getName()
+                        + Arrays.toString(method.getParameterTypes());
+                    if (!seen.add(signature)) continue;
+                    try {
+                        method.setAccessible(true);
+                        methods.add(method);
+                        logError.accept("Found clipboard target: " + signature);
+                    } catch (Throwable error) {
+                        logError.accept("Cannot access " + signature + ": " + error);
+                    }
                 }
+            } catch (Throwable error) {
+                logError.accept("Cannot inspect " + type.getName() + ": " + error);
             }
         }
         return methods;
@@ -71,8 +94,16 @@ public final class ClipCapture {
         try {
             Class<?> activityThread = Class.forName("android.app.ActivityThread");
             Object current = activityThread.getMethod("currentActivityThread").invoke(null);
-            Context context = (Context) activityThread.getMethod("getSystemContext")
-                .invoke(current);
+            if (current == null) current = activityThread.getMethod("systemMain").invoke(null);
+            if (current == null) {
+                logError.accept("ActivityThread instance is null in system_server");
+                return null;
+            }
+            Context context = (Context) activityThread.getMethod("getSystemContext").invoke(current);
+            if (context == null) {
+                logError.accept("ActivityThread returned a null system context");
+                return null;
+            }
             cachedSystemContext = context;
             return context;
         } catch (Throwable error) {
@@ -81,39 +112,41 @@ public final class ClipCapture {
         }
     }
 
-    /** Extract text/URI and enqueue provider delivery without blocking system_server. */
+    /** Extract plain text/URI and enqueue delivery without blocking system_server. */
     public static void captureAndForward(Object[] args, Consumer<String> logError) {
         try {
             ClipData clip = null;
-            for (Object arg : args) {
-                if (arg instanceof ClipData) {
-                    clip = (ClipData) arg;
-                    break;
-                }
+            if (args != null) for (Object arg : args) {
+                if (arg instanceof ClipData) { clip = (ClipData) arg; break; }
             }
-            if (clip == null || clip.getItemCount() <= 0) return;
-
+            if (clip == null || clip.getItemCount() <= 0) {
+                logError.accept("Hook fired but no ClipData argument was present");
+                return;
+            }
             ClipData.Item item = clip.getItemAt(0);
             String text = item.getText() == null ? null : item.getText().toString();
-            if (text == null || text.trim().isEmpty()) {
+            if (text == null || text.trim().isEmpty())
                 text = item.getUri() == null ? null : item.getUri().toString();
+            if (text == null || text.trim().isEmpty()) {
+                logError.accept("Clipboard item has no plain text or URI");
+                return;
             }
-            if (text == null || text.trim().isEmpty()) return;
 
             long capturedAt = System.currentTimeMillis();
-            Context systemContext = resolveSystemContext(logError);
-            if (systemContext == null) return;
-
+            Context context = resolveSystemContext(logError);
+            if (context == null) return;
             final String capturedText = text;
-            final Context context = systemContext;
+            final Context systemContext = context;
             DELIVERY.execute(() -> {
                 try {
                     ContentValues values = new ContentValues();
                     values.put("content", capturedText);
                     values.put("captured_at", capturedAt);
-                    context.getContentResolver().insert(CONTENT_URI, values);
+                    Uri result = systemContext.getContentResolver().insert(CONTENT_URI, values);
+                    if (result == null) logError.accept("Clipboard provider returned null");
                 } catch (Throwable error) {
-                    logError.accept("Failed to forward clipboard to PulseXt: " + error);
+                    logError.accept("Provider IPC failed: " + error);
+                    Log.e(TAG, "Failed to forward clipboard", error);
                 }
             });
         } catch (Throwable error) {
