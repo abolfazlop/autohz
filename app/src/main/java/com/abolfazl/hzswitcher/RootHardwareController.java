@@ -66,13 +66,15 @@ public final class RootHardwareController {
 
     /** Discover every cpufreq policy and use kernel-reported bounds, not guessed values. */
     public static List<CpuPolicy> discoverCpuPolicies() {
-        String script="for d in /sys/devices/system/cpu/cpufreq/policy*; do "+
-          "[ -d \"$d\" ] || continue; "+
-          "readv(){ [ -r \"$d/$1\" ] && cat \"$d/$1\" 2>/dev/null || echo ''; }; "+
+        String helper="/data/adb/modules/pulsext_touch_engine/pulsext-hwprobe";
+        String script="if [ -x '"+helper+"' ]; then '"+helper+"' cpu; else "+
+          "for d in /sys/devices/system/cpu/cpufreq/policy*; do "+
+          "[ -d \\"$d\\" ] || continue; "+
+          "readv(){ [ -r \\"$d/$1\\" ] && cat \\"$d/$1\\" 2>/dev/null || echo ''; }; "+
           "echo POLICY:$d; echo CPUS:$(readv related_cpus); echo GOV:$(readv scaling_governor); "+
           "echo GOVS:$(readv scaling_available_governors); "+
           "echo HMIN:$(readv cpuinfo_min_freq); echo HMAX:$(readv cpuinfo_max_freq); "+
-          "echo MIN:$(readv scaling_min_freq); echo MAX:$(readv scaling_max_freq); done";
+          "echo MIN:$(readv scaling_min_freq); echo MAX:$(readv scaling_max_freq); done; fi";
         Result r=run(script,7000); ArrayList<CpuPolicy> out=new ArrayList<>();
         if(!r.ok())return out;
         String[] lines=r.output.split("\\r?\\n"); Map<String,String> m=new HashMap<>();
