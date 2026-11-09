@@ -232,6 +232,7 @@ public class MainActivity extends Activity {
         addFeatureRow(list,"brightness","Display Brightness","Smoothly adjust screen brightness",()->showBrightness());
         addFeatureRow(list,"refresh","Refresh Rate","30  /  60  /  90  /  120 Hz",()->showRefreshRate());
         addFeatureRow(list,"tools","Game Profile","Per-game performance modes and launch shortcuts",()->showGameProfiles());
+        addFeatureRow(list,"channel","Clipboard","Clipboard history, favorites, import and export",()->startActivity(new Intent(this,ClipboardActivity.class)));
         showPage("Home",c);
         for(int i=0;i<list.getChildCount();i++){View child=list.getChildAt(i);child.setAlpha(0f);child.setTranslationY(dp(10));child.animate().alpha(1f).translationY(0).setStartDelay(45L*i).setDuration(220).start();}
         search.addTextChangedListener(new android.text.TextWatcher(){
