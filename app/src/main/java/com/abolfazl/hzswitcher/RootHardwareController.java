@@ -109,16 +109,15 @@ public final class RootHardwareController {
         String base=p.path;
         String command=
           "set -eu; "+
-          "write_node(){ f=\\"$1\\"; v=\\"$2\\"; "+
-          "mode=$(stat -c %a \\"$f\\") || return 20; "+
-          "chmod u+w \\"$f\\" || { echo \\"chmod_denied:$f\\"; return 21; }; "+
-          "if ! printf '%s\\n' \\"$v\\" > \\"$f\\"; then chmod \\"$mode\\" \\"$f\\"; echo \\"write_denied:$f\\"; return 22; fi; "+
-          "chmod \\"$mode\\" \\"$f\\" || { echo \\"restore_mode_failed:$f\\"; return 23; }; "+
-          "actual=$(cat \\"$f\\"); [ \\"$actual\\" = \\"$v\\" ] || { echo \\"verify_failed:$f expected=$v actual=$actual\\"; return 24; }; }; "+
-          "curmin=$(cat '"+base+"/scaling_min_freq'); curmax=$(cat '"+base+"/scaling_max_freq'); "+
-          "if [ "+maxKhz+" -lt \\"$curmin\\" ]; then "+
-          "write_node '"+base+"/scaling_min_freq' '"+minKhz+"' && write_node '"+base+"/scaling_max_freq' '"+maxKhz+"'; "+
-          "else write_node '"+base+"/scaling_max_freq' '"+maxKhz+"' && write_node '"+base+"/scaling_min_freq' '"+minKhz+"'; fi";
+          "write_node(){ f=$1; v=$2; mode=$(stat -c %a $f) || return 20; "+
+          "chmod u+w $f || { echo chmod_denied; return 21; }; "+
+          "if ! printf '%s\\n' $v > $f; then chmod $mode $f; echo write_denied; return 22; fi; "+
+          "chmod $mode $f || { echo restore_mode_failed; return 23; }; "+
+          "actual=$(cat $f); [ $actual = $v ] || { echo verify_failed; return 24; }; }; "+
+          "curmin=$(cat "+base+"/scaling_min_freq); "+
+          "if [ "+maxKhz+" -lt $curmin ]; then "+
+          "write_node "+base+"/scaling_min_freq "+minKhz+" && write_node "+base+"/scaling_max_freq "+maxKhz+"; "+
+          "else write_node "+base+"/scaling_max_freq "+maxKhz+" && write_node "+base+"/scaling_min_freq "+minKhz+"; fi";
         return run(command,7000);
     }
 
