@@ -18,7 +18,7 @@ public final class ClipboardHook implements IXposedHookLoadPackage {
 
     @Override
     public void handleLoadPackage(LoadPackageParam param) {
-        if ("com.abolfazl.hzswitcher".equals(param.packageName)) {
+        if (param.packageName != null && param.packageName.startsWith("com.abolfazl.hzswitcher")) {
             hookSelfStatus(param);
             return;
         }
