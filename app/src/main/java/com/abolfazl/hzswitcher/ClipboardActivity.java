@@ -18,7 +18,7 @@ public final class ClipboardActivity extends Activity {
  private static final String PREF="pulsext_clipboard",KEY="entries",LIMIT_KEY="history_limit",PRIVATE_KEY="private_mode";
  private static final int IMPORT=41,EXPORT=42; private static final int[] LIMITS={50,100,200,500,0};
  private static final int BG=0xff08090b,PANEL=0xff191a1d,PANEL2=0xff24262a,TEXT=0xfff5f3fa,MUTED=0xffaaa5b5,ACCENT=0xffb58cff;
- private final ArrayList<JSONObject> entries=new ArrayList<>(); private LinearLayout list,root; private EditText search;
+ private final ArrayList<JSONObject> entries=new ArrayList<>(); private final HashSet<String> selectedIds=new HashSet<>(); private LinearLayout list,root; private EditText search;
  private boolean favoritesOnly=false,privateMode=false; private int historyLimit=200; private ClipboardManager clipboard;
  private TextView allTab,favTab,status; private android.os.Handler handler=new android.os.Handler();
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
@@ -61,11 +61,11 @@ public final class ClipboardActivity extends Activity {
  private void render(){
   if(list==null)return;allTab.setTextColor(favoritesOnly?MUTED:ACCENT);favTab.setTextColor(favoritesOnly?ACCENT:MUTED);list.removeAllViews();String q=search.getText().toString().trim().toLowerCase(Locale.ROOT);int shown=0;
   for(JSONObject o:new ArrayList<>(entries)){String value=o.optString("text","");if(favoritesOnly&&!o.optBoolean("favorite"))continue;if(!q.isEmpty()&&!value.toLowerCase(Locale.ROOT).contains(q))continue;shown++;addCard(o);}
-  status.setText(privateMode?"Private mode is ON · capture paused":shown+" clips · "+(HookStatus.isActive()?"LSPosed module loaded":"LSPosed module not detected"));
+  if(!selectedIds.isEmpty()){status.setText(selectedIds.size()+" selected · Tap here to delete");status.setTextColor(0xffff9b9b);status.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Delete selected clips?").setMessage("Delete "+selectedIds.size()+" selected entries?").setNegativeButton("Cancel",null).setPositiveButton("Delete",(d,w)->{entries.removeIf(x->selectedIds.contains(x.optString("id")));selectedIds.clear();save();render();}).show());}else{status.setText(privateMode?"Private mode is ON · capture paused":shown+" clips · "+(HookStatus.isActive()?"LSPosed module loaded":"LSPosed module not detected"));status.setTextColor(MUTED);status.setOnClickListener(null);}
   if(shown==0){TextView empty=label(q.isEmpty()?(favoritesOnly?"No favorites yet":"No clipboard history yet"):"No matching clips",15,MUTED,false);empty.setGravity(Gravity.CENTER);pad(empty,16,48,16,48);list.addView(empty,new LinearLayout.LayoutParams(-1,-2));}
  }
  private void addCard(JSONObject o){
-  LinearLayout card=col();pad(card,14,13,14,10);card.setBackground(shape(PANEL,20,o.optBoolean("active")?0xff7956a8:0xff292b30));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=dp(9);list.addView(card,cp);
+  LinearLayout card=col();pad(card,14,13,14,10);boolean selected=selectedIds.contains(o.optString("id"));card.setBackground(shape(selected?0xff302447:PANEL,20,selected?ACCENT:(o.optBoolean("active")?0xff7956a8:0xff292b30)));card.setOnLongClickListener(v->{String id=o.optString("id");if(!selectedIds.add(id))selectedIds.remove(id);render();return true;});LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=dp(9);list.addView(card,cp);
   LinearLayout top=row();top.addView(label(relativeTime(o.optLong("time")),11,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));if(o.optBoolean("active"))top.addView(label("●  On clipboard",10,ACCENT,true));card.addView(top);
   TextView content=label(o.optString("text"),14,TEXT,false);content.setMaxLines(5);content.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2);tp.topMargin=dp(7);card.addView(content,tp);
   LinearLayout actions=row();LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(40));ap.topMargin=dp(8);card.addView(actions,ap);
