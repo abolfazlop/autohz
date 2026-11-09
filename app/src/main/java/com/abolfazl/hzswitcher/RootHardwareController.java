@@ -102,15 +102,24 @@ public final class RootHardwareController {
         for(CpuPolicy x:policies)if(x.path.equals(policyPath)){p=x;break;}
         if(p==null)return new Result(3,"CPU policy not detected");
         if(minKhz<p.hardwareMinKhz||maxKhz>p.hardwareMaxKhz||minKhz>maxKhz)return new Result(4,"requested CPU limits outside detected hardware range");
+
+        // Some Android vendor kernels expose CPUFreq limit nodes as 0444.
+        // Temporarily add owner-write permission, perform a verified write,
+        // then restore the exact original mode. Never change SELinux state.
         String base=p.path;
-        // Avoid transient min>max/max<min conflicts while moving the policy window.
-        String command="curmin=$(cat '"+base+"/scaling_min_freq') && curmax=$(cat '"+base+"/scaling_max_freq') && "+
-          "if [ "+maxKhz+" -lt \"$curmin\" ]; then "+
-          "echo "+minKhz+" > '"+base+"/scaling_min_freq' && echo "+maxKhz+" > '"+base+"/scaling_max_freq'; "+
-          "else echo "+maxKhz+" > '"+base+"/scaling_max_freq' && echo "+minKhz+" > '"+base+"/scaling_min_freq'; fi && "+
-          "[ \"$(cat '"+base+"/scaling_min_freq')\" = '"+minKhz+"' ] && "+
-          "[ \"$(cat '"+base+"/scaling_max_freq')\" = '"+maxKhz+"' ]";
-        return run(command,5000);
+        String command=
+          "set -eu; "+
+          "write_node(){ f=\\"$1\\"; v=\\"$2\\"; "+
+          "mode=$(stat -c %a \\"$f\\") || return 20; "+
+          "chmod u+w \\"$f\\" || { echo \\"chmod_denied:$f\\"; return 21; }; "+
+          "if ! printf '%s\\n' \\"$v\\" > \\"$f\\"; then chmod \\"$mode\\" \\"$f\\"; echo \\"write_denied:$f\\"; return 22; fi; "+
+          "chmod \\"$mode\\" \\"$f\\" || { echo \\"restore_mode_failed:$f\\"; return 23; }; "+
+          "actual=$(cat \\"$f\\"); [ \\"$actual\\" = \\"$v\\" ] || { echo \\"verify_failed:$f expected=$v actual=$actual\\"; return 24; }; }; "+
+          "curmin=$(cat '"+base+"/scaling_min_freq'); curmax=$(cat '"+base+"/scaling_max_freq'); "+
+          "if [ "+maxKhz+" -lt \\"$curmin\\" ]; then "+
+          "write_node '"+base+"/scaling_min_freq' '"+minKhz+"' && write_node '"+base+"/scaling_max_freq' '"+maxKhz+"'; "+
+          "else write_node '"+base+"/scaling_max_freq' '"+maxKhz+"' && write_node '"+base+"/scaling_min_freq' '"+minKhz+"'; fi";
+        return run(command,7000);
     }
 
     public static Result setCpuGovernor(String policyPath,String governor) {
