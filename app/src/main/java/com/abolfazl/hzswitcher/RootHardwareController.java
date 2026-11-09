@@ -95,30 +95,47 @@ public final class RootHardwareController {
           Math.max(hmin,Math.min(min,hmax)),Math.max(hmin,Math.min(max,hmax)),hmin,hmax));
     }
 
-    /** Validate bounds against the live policy immediately before writing. */
+    /**
+     * Detect writable CPU control backends at runtime. Detection is read-only:
+     * never chmod sysfs nodes or change SELinux policy to manufacture access.
+     */
+    public static String detectCpuBackend() {
+        String script =
+          "echo ROOT:$(id -u); " +
+          "echo PLATFORM:$(getprop ro.board.platform); " +
+          "for d in /sys/devices/system/cpu/cpufreq/policy*; do [ -d \\"$d\\" ] || continue; " +
+          "echo POLICY:$d; " +
+          "for f in scaling_min_freq scaling_max_freq scaling_governor; do " +
+          "[ -e \\"$d/$f\\" ] && echo NODE:$f:$( [ -w \\"$d/$f\\" ] && echo writable || echo readonly ); done; done; " +
+          "for f in /proc/ppm/policy/hard_userlimit_min_cpu_freq /proc/ppm/policy/hard_userlimit_max_cpu_freq /proc/ppm/policy/ut_fix_freq_idx; do " +
+          "[ -e \\"$f\\" ] && echo PPM_NODE:$f:$( [ -w \\"$f\\" ] && echo writable || echo readonly ); done; " +
+          "for d in /sys/class/devfreq/*; do [ -d \\"$d\\" ] || continue; " +
+          "case \\"$(basename \\"$d\\" | tr '[:upper:]' '[:lower:]')\\" in *gpu*|*mali*|*3d*) " +
+          "echo DEVFREQ:$d; for f in min_freq max_freq governor; do [ -e \\"$d/$f\\" ] && echo NODE:$f:$( [ -w \\"$d/$f\\" ] && echo writable || echo readonly ); done;; esac; done";
+        Result r=run(script,7000);
+        return r.ok()?r.output:"backend_detection_failed:"+r.output;
+    }
+
+    /** Apply CPU limits only through kernel control nodes that are already writable.
+     * Vendor PPM interfaces are detected separately; their semantics are SoC-specific
+     * and must not be guessed from filenames.
+     */
     public static Result setCpuLimits(String policyPath,long minKhz,long maxKhz) {
         if(policyPath==null||!policyPath.matches("/sys/devices/system/cpu/cpufreq/policy[0-9]+"))return new Result(2,"invalid CPU policy path");
-        List<CpuPolicy> policies=discoverCpuPolicies(); CpuPolicy p=null;
-        for(CpuPolicy x:policies)if(x.path.equals(policyPath)){p=x;break;}
+        CpuPolicy p=null;
+        for(CpuPolicy x:discoverCpuPolicies())if(x.path.equals(policyPath)){p=x;break;}
         if(p==null)return new Result(3,"CPU policy not detected");
         if(minKhz<p.hardwareMinKhz||maxKhz>p.hardwareMaxKhz||minKhz>maxKhz)return new Result(4,"requested CPU limits outside detected hardware range");
-
-        // Some Android vendor kernels expose CPUFreq limit nodes as 0444.
-        // Temporarily add owner-write permission, perform a verified write,
-        // then restore the exact original mode. Never change SELinux state.
         String base=p.path;
-        String command=
-          "set -eu; "+
-          "write_node(){ f=$1; v=$2; mode=$(stat -c %a $f) || return 20; "+
-          "chmod u+w $f || { echo chmod_denied; return 21; }; "+
-          "if ! printf '%s\\n' $v > $f; then chmod $mode $f; echo write_denied; return 22; fi; "+
-          "chmod $mode $f || { echo restore_mode_failed; return 23; }; "+
-          "actual=$(cat $f); [ $actual = $v ] || { echo verify_failed; return 24; }; }; "+
-          "curmin=$(cat "+base+"/scaling_min_freq); "+
-          "if [ "+maxKhz+" -lt $curmin ]; then "+
-          "write_node "+base+"/scaling_min_freq "+minKhz+" && write_node "+base+"/scaling_max_freq "+maxKhz+"; "+
-          "else write_node "+base+"/scaling_max_freq "+maxKhz+" && write_node "+base+"/scaling_min_freq "+minKhz+"; fi";
-        return run(command,7000);
+        String script="set -eu; mn='"+minKhz+"'; mx='"+maxKhz+"'; "+
+          "test -w '"+base+"/scaling_min_freq' && test -w '"+base+"/scaling_max_freq' || { echo backend_read_only; exit 30; }; "+
+          "curmin=$(cat '"+base+"/scaling_min_freq'); "+
+          "if [ \\"$mx\\" -lt \\"$curmin\\" ]; then "+
+          "printf '%s\\n' \\"$mn\\" > '"+base+"/scaling_min_freq'; printf '%s\\n' \\"$mx\\" > '"+base+"/scaling_max_freq'; "+
+          "else printf '%s\\n' \\"$mx\\" > '"+base+"/scaling_max_freq'; printf '%s\\n' \\"$mn\\" > '"+base+"/scaling_min_freq'; fi; "+
+          "amin=$(cat '"+base+"/scaling_min_freq'); amax=$(cat '"+base+"/scaling_max_freq'); "+
+          "[ \\"$amin\\" = \\"$mn\\" ] && [ \\"$amax\\" = \\"$mx\\" ] || { echo verify_mismatch:min=$amin,max=$amax; exit 31; }; echo applied:min=$amin,max=$amax";
+        return run(script,7000);
     }
 
     public static Result setCpuGovernor(String policyPath,String governor) {
