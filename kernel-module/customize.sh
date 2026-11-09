@@ -12,7 +12,7 @@ if [ ! -s "$MODDIR/bin/rodin_daemon" ] || [ ! -s "$MODDIR/bin/rodin_ctl" ]; then
   abort "! Rodin native binaries are missing from the module ZIP."
 fi
 # Restore executable bits after extraction.
-chmod 0755 "$MODDIR/service.sh" "$MODDIR/post-fs-data.sh" "$MODDIR/uninstall.sh" "$MODDIR/pulsext-touchctl" 2>/dev/null
+chmod 0755 "$MODDIR/service.sh" "$MODDIR/post-fs-data.sh" "$MODDIR/uninstall.sh" "$MODDIR/pulsext-touchctl" "$MODDIR/pulsext-hwprobe" 2>/dev/null
 chmod 0755 "$MODDIR/bin/rodin_daemon" "$MODDIR/bin/rodin_ctl"
 if [ ! -x "$MODDIR/bin/rodin_ctl" ] || [ ! -x "$MODDIR/bin/rodin_daemon" ]; then
   abort "! Could not set executable permissions on native backend."
