@@ -756,8 +756,8 @@ public class MainActivity extends Activity {
         String prefKey=cluster+"_"+key+"_enabled";
         Switch enabled=new Switch(this);enabled.setChecked(gamePrefs.getBoolean(profileKey(pkg,prefKey),false));enabled.setEnabled(manualAllowed);header.addView(enabled);item.addView(header);
         String valueKey=cluster+"_"+key+"_mhz";
-        int initial=gamePrefs.getInt(profileKey(pkg,valueKey),fallback);
         int safeMin=Math.max(1,min),safeMax=Math.max(safeMin,max);
+        int initial=Math.max(safeMin,Math.min(gamePrefs.getInt(profileKey(pkg,valueKey),fallback),safeMax));
         TextView current=text(initial+" MHz",12,ACCENT,true);item.addView(current);
         SeekBar slider=new SeekBar(this);slider.setMax(Math.max(1,(safeMax-safeMin)/50));slider.setProgress(Math.max(0,Math.min(slider.getMax(),(initial-safeMin)/50)));
         if(android.os.Build.VERSION.SDK_INT>=21){slider.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));slider.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));}
