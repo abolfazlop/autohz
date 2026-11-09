@@ -249,6 +249,7 @@ public final class GameProfileMonitorService extends Service {
     /** Apply only controls enabled by the saved game profile, using live kernel bounds. */
     private void applyGameHardwareProfile(String pkg){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
+        Log.i(TAG,"CPU backend detection: "+RootHardwareController.detectCpuBackend());
         java.util.List<RootHardwareController.CpuPolicy> policies=orderedCpuPolicies();
         String[] ids={"little","big","prime"};
         for(int i=0;i<policies.size()&&i<ids.length;i++){
