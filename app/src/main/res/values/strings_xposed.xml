@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources><string name="xposed_description">Captures system-wide clipboard changes into PulseXt clipboard history using LSPosed. Data remains on device.</string></resources>
