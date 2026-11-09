@@ -56,13 +56,58 @@ public final class ClipboardStore {
         }
     }
 
-    /** Replace the table atomically with the supplied current UI snapshot. */
+    /**
+     * Append one captured clipboard item atomically. This is the ONLY write path
+     * used by the system hook/provider: it never reads and replaces the history
+     * snapshot, so concurrent UI updates cannot erase newly captured clips.
+     */
+    public static boolean append(Context context, String text, long timestamp,
+                                 int limit) {
+        if (text == null || text.trim().isEmpty()) return false;
+        synchronized (LOCK) {
+            SQLiteDatabase database = db(context).getWritableDatabase();
+            database.beginTransaction();
+            try {
+                database.execSQL("UPDATE clips SET active=0");
+                ContentValues values = new ContentValues();
+                values.put("clip_id", java.util.UUID.randomUUID().toString());
+                values.put("content", text);
+                values.put("timestamp", timestamp);
+                values.put("favorite", 0);
+                values.put("active", 1);
+                // Exact duplicate text is promoted to newest; distinct text
+                // always receives its own row and never overwrites another clip.
+                database.insertWithOnConflict("clips", null, values,
+                    SQLiteDatabase.CONFLICT_REPLACE);
+
+                if (limit > 0) {
+                    database.execSQL(
+                        "DELETE FROM clips WHERE favorite=0 AND clip_id NOT IN " +
+                        "(SELECT clip_id FROM clips WHERE favorite=0 " +
+                        "ORDER BY timestamp DESC, rowid DESC LIMIT ?)",
+                        new Object[]{limit});
+                }
+                database.setTransactionSuccessful();
+                return true;
+            } catch (Throwable error) {
+                android.util.Log.e("PulseXt ClipboardStore",
+                    "Atomic append failed", error);
+                return false;
+            } finally {
+                database.endTransaction();
+            }
+        }
+    }
+
+    /**
+     * Merge UI edits into SQLite without deleting rows that may have arrived
+     * concurrently from system_server. Capture writes use append(), not this.
+     */
     public static boolean write(Context context, JSONArray entries) {
         synchronized (LOCK) {
             SQLiteDatabase database = db(context).getWritableDatabase();
             database.beginTransaction();
             try {
-                database.delete("clips", null, null);
                 for (int i = 0; i < entries.length(); i++) {
                     JSONObject item = entries.optJSONObject(i);
                     if (item == null) continue;
@@ -81,7 +126,9 @@ public final class ClipboardStore {
                 }
                 database.setTransactionSuccessful();
                 return true;
-            } catch (Exception error) {
+            } catch (Throwable error) {
+                android.util.Log.e("PulseXt ClipboardStore",
+                    "UI merge failed", error);
                 return false;
             } finally {
                 database.endTransaction();
