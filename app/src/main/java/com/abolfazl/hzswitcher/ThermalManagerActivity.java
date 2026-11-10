@@ -92,11 +92,12 @@ public final class ThermalManagerActivity extends Activity {
             if(rootOk&&!p.isEmpty()&&!d.isEmpty()){
                 String url="https://vtools.oss-cn-beijing.aliyuncs.com/Scene-Online/Thermal/"+safe(p)+"/"+safe(d)+"/options.ini";
                 String script="U='"+url+"'; T=/data/local/tmp/pulsext-scene-options.txt; rm -f \\"$T\\"; "+
-                    "if command -v curl >/dev/null 2>&1; then curl -fLsS --connect-timeout 5 --max-time 15 \\"$U\\" -o \\"$T\\" 2>&1 || true; "+
+                    "if command -v curl >/dev/null 2>&1; then curl -LsS --connect-timeout 5 --max-time 15 \\"$U\\" -o \\"$T\\" 2>&1 || true; "+
                     "elif command -v wget >/dev/null 2>&1; then wget -q -T 15 -O \\"$T\\" \\"$U\\" 2>&1 || true; "+
                     "elif command -v toybox >/dev/null 2>&1; then toybox wget -q -T 15 -O \\"$T\\" \\"$U\\" 2>&1 || true; "+
                     "else echo FETCH_ERROR:no_curl_or_wget; exit 21; fi; "+
-                    "if [ -s \\"$T\\" ]; then cat \\"$T\\"; else echo FETCH_ERROR:empty_response_or_network_error; fi";
+                    "if [ -s \\"$T\\" ]; then if grep -qi 'Error' \\"$T\\"; then echo 'default|System Default'; else cat \\"$T\\"; fi; "+
+                    "else echo FETCH_ERROR:empty_response_or_network_error; fi";
                 RootHardwareController.Result fetched=RootHardwareController.run(script,22000);
                 profileOut=fetched.output;
                 if(!fetched.ok())fetchError="Scene profile request failed (exit "+fetched.exitCode+")";
