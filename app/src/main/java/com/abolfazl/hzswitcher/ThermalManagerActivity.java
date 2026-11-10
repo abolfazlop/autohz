@@ -12,6 +12,9 @@ import android.widget.*;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.io.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Scene-compatible MIUI thermal profile selector.
@@ -79,48 +82,80 @@ public final class ThermalManagerActivity extends Activity {
         setContentView(root);
     }
 
+    private static final String SCENE_BASE="https://vtools.oss-cn-beijing.aliyuncs.com/Scene-Online/Thermal";
+
+    private String httpGet(String address) throws Exception {
+        HttpURLConnection connection=(HttpURLConnection)new URL(address).openConnection();
+        connection.setConnectTimeout(10000); connection.setReadTimeout(15000);
+        connection.setRequestProperty("User-Agent","AutoHz-ThermalManager/1.0");
+        try {
+            int code=connection.getResponseCode();
+            InputStream stream=(code>=200&&code<300)?connection.getInputStream():connection.getErrorStream();
+            if(stream==null) throw new IOException("HTTP "+code);
+            ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+            byte[] buffer=new byte[8192]; int n;
+            while((n=stream.read(buffer))!=-1) bytes.write(buffer,0,n);
+            String body=new String(bytes.toByteArray(),StandardCharsets.UTF_8).trim();
+            if(code<200||code>=300) throw new IOException("HTTP "+code+": "+body);
+            return body;
+        } finally { connection.disconnect(); }
+    }
+
+    private File thermalWorkDir() throws IOException {
+        File base=getExternalFilesDir("thermal-manager");
+        if(base==null) throw new IOException("External app storage is unavailable");
+        if(!base.exists()&&!base.mkdirs()) throw new IOException("Cannot create thermal staging directory");
+        return base;
+    }
+
+    private void writeText(File file,String value) throws IOException {
+        try(FileOutputStream out=new FileOutputStream(file,false)){
+            out.write(value.getBytes(StandardCharsets.UTF_8)); out.flush(); out.getFD().sync();
+        }
+    }
+
+    private void downloadTo(String address,File target) throws Exception {
+        String body=httpGet(address);
+        if(body.isEmpty()||body.toLowerCase(Locale.ROOT).contains("<error")||
+            body.toLowerCase(Locale.ROOT).startsWith("error")) throw new IOException("Scene returned an error for "+target.getName());
+        writeText(target,body);
+    }
+
     private void discover(){
-        status.setText("Checking root and fetching device-specific profiles…");
+        status.setText("Detecting device and connecting to Scene…");
         worker.execute(()->{
             RootHardwareController.Result r=RootHardwareController.run(
-                "printf 'ROOT='; id -u; printf '\\nPLATFORM='; getprop ro.board.platform | tr 'A-Z' 'a-z'; printf '\\nDEVICE='; getprop ro.product.device; "+
-                "printf '\\nCURL='; command -v curl 2>/dev/null || true; printf '\\nWGET='; command -v wget 2>/dev/null || true; printf '\\nTOYBOX='; command -v toybox 2>/dev/null || true",8000);
+                "printf 'ROOT='; id -u; printf '\\nPLATFORM='; getprop ro.board.platform | tr 'A-Z' 'a-z'; printf '\\nDEVICE='; getprop ro.product.device",8000);
             String out=r.output;
             String p=field(out,"PLATFORM"),d=field(out,"DEVICE");
             boolean rootOk=field(out,"ROOT").equals("0");
             String profileOut="",fetchError="";
-            if(rootOk&&!p.isEmpty()&&!d.isEmpty()){
-                String url="https://vtools.oss-cn-beijing.aliyuncs.com/Scene-Online/Thermal/"+safe(p)+"/"+safe(d)+"/options.ini";
-                String script="U='"+url+"'; T=/data/local/tmp/pulsext-scene-options.txt; rm -f \"$T\"; "+
-                    "if command -v curl >/dev/null 2>&1; then curl -LsS --connect-timeout 5 --max-time 15 \"$U\" -o \"$T\" 2>&1 || true; "+
-                    "elif command -v wget >/dev/null 2>&1; then wget -q -T 15 -O \"$T\" \"$U\" 2>&1 || true; "+
-                    "elif command -v toybox >/dev/null 2>&1; then toybox wget -q -T 15 -O \"$T\" \"$U\" 2>&1 || true; "+
-                    "else echo FETCH_ERROR:no_curl_or_wget; exit 21; fi; "+
-                    "if [ -s \"$T\" ]; then if grep -qi 'Error' \"$T\"; then echo 'default|System Default'; else cat \"$T\"; fi; "+
-                    "else echo FETCH_ERROR:empty_response_or_network_error; fi";
-                RootHardwareController.Result fetched=RootHardwareController.run(script,22000);
-                profileOut=fetched.output;
-                if(!fetched.ok())fetchError="Scene profile request failed (exit "+fetched.exitCode+")";
-            } else fetchError="Root access or device properties unavailable";
+            if(!p.isEmpty()&&!d.isEmpty()){
+                try {
+                    profileOut=httpGet(SCENE_BASE+"/"+safe(p)+"/"+safe(d)+"/options.ini");
+                    if(profileOut.toLowerCase(Locale.ROOT).contains("error"))
+                        profileOut="default|@string:kr_system_default";
+                } catch(Exception e) {
+                    fetchError="Scene connection failed: "+e.getMessage();
+                }
+            } else fetchError="Could not read board platform/device properties";
             final String fp=p,fd=d,fo=profileOut,fe=fetchError;final boolean fr=rootOk;
             runOnUiThread(()->{
                 platform=fp;device=fd;
                 deviceInfo.setText("Platform: "+(fp.isEmpty()?"unknown":fp)+"   •   Device: "+(fd.isEmpty()?"unknown":fd));
                 profiles.clear();
-                if(fr){
-                    for(String line:fo.split("\\r?\\n")){
-                        String[] pair=line.trim().split("\\|",2);
-                        if(pair.length<1)continue;
-                        String id=pair[0].trim();
-                        if(!id.matches("[A-Za-z0-9_-]+"))continue;
-                        String label=pair.length>1?pair[1].trim():"";
-                        profiles.add(new Profile(id,displayName(id,label)));
-                    }
+                for(String line:fo.split("\\r?\\n")){
+                    String[] pair=line.trim().split("\\|",2);
+                    if(pair.length<1)continue;
+                    String id=pair[0].trim();
+                    if(!id.matches("[A-Za-z0-9_-]+"))continue;
+                    String label=pair.length>1?pair[1].trim():"";
+                    profiles.add(new Profile(id,displayName(id,label)));
                 }
                 renderOptions();
-                if(!fr)status.setText("Root access is required. Grant AutoHz root permission and retry.");
-                else if(fo.startsWith("FETCH_ERROR:"))status.setText(fe+": "+fo.substring("FETCH_ERROR:".length())+". Device: "+fp+"/"+fd+". Nothing was changed.");
-                else if(profiles.isEmpty())status.setText("Scene returned no usable profiles for "+fp+"/"+fd+". Response: "+(fo.isEmpty()?"<empty>":fo.substring(0,Math.min(90,fo.length())))+". Nothing was changed.");
+                if(!fr)status.setText("Root access is required to apply profiles. Grant AutoHz root permission.");
+                else if(!fe.isEmpty())status.setText(fe+". Nothing was changed.");
+                else if(profiles.isEmpty())status.setText("Scene has no published profile list for "+fp+"/"+fd+". Nothing was changed.");
                 else status.setText("Scene profile list loaded for this device. Select a profile to apply.");
             });
         });
@@ -168,58 +203,93 @@ public final class ThermalManagerActivity extends Activity {
     }
 
     private void apply(Profile profile){
-        busy=true;status.setText("Applying "+profile.label+"…");
+        busy=true;status.setText("Preparing "+profile.label+"…");
         worker.execute(()->{
-            String script;
-            if(profile.id.equalsIgnoreCase("default"))script=restoreScript();
-            else script=applyScript(profile.id);
-            RootHardwareController.Result result=RootHardwareController.run(script,90000);
+            RootHardwareController.Result result;
+            try {
+                String script;
+                if(profile.id.equalsIgnoreCase("default")) script=restoreScript();
+                else script=prepareAndApply(profile.id);
+                result=RootHardwareController.run(script,90000);
+            } catch(Exception e) {
+                result=RootHardwareController.Result.failure("Download failed: "+e.getMessage());
+            }
+            final RootHardwareController.Result finalResult=result;
             runOnUiThread(()->{
                 busy=false;
-                status.setText(result.ok()?"Applied and verified: "+profile.label:
-                    "Could not apply profile: "+result.output);
+                status.setText(finalResult.ok()?"Applied: "+profile.label:
+                    "Could not apply profile: "+finalResult.output);
             });
         });
     }
 
     /**
-     * Mirrors Scene thermal_conf3: getprop platform/device -> per-device
-     * options.ini -> thermal_files.ini + mode/files.ini -> populate
-     * /data/vendor/thermal/config -> restart mi_thermald/thermal-engine.
-     * Unlike Scene's cleanup, only files listed for this device are replaced,
-     * and original files are backed up once so System Default can restore them.
+     * Scene thermal_conf3 download.sh/config.sh sequence, but HTTP downloads
+     * run in Android's Java network stack instead of assuming curl/wget exists
+     * in the device shell (many MIUI Toybox builds omit both).
      */
-    private String applyScript(String mode){
+    private String prepareAndApply(String mode) throws Exception {
         String p=safe(platform),d=safe(device),m=safe(mode);
-        return "set -eu; P='"+p+"'; D='"+d+"'; M='"+m+"'; "+
-            "BASE=\"/data/adb/pulsext/thermal-backup/$D\"; "+
-            "DIR='/data/vendor/thermal/config'; U='https://vtools.oss-cn-beijing.aliyuncs.com/Scene-Online/Thermal'; "+
-            "test \"$(id -u)\" = 0; test -n \"$P\"; test -n \"$D\"; "+
-            "command -v curl >/dev/null 2>&1 || { echo curl_missing; exit 10; }; "+
-            "mkdir -p \"$BASE/files\" \"$DIR\"; "+
-            "curl -fLsS --max-time 20 \"$U/$P/$D/thermal_files.ini\" -o \"$BASE/thermal_files.ini\"; "+
-            "curl -fLsS --max-time 20 \"$U/$P/$D/$M/files.ini\" -o \"$BASE/profile_files.ini\"; "+
-            "grep -q '^thermal' \"$BASE/thermal_files.ini\" || { echo invalid_device_file_list; exit 11; }; "+
-            "while IFS= read -r F; do case \"$F\" in thermal*.conf) ;; *) continue;; esac; "+
-            "if [ ! -e \"$BASE/files/$F.saved\" ]; then if [ -f \"$DIR/$F\" ]; then cp -p \"$DIR/$F\" \"$BASE/files/$F.saved\"; else : > \"$BASE/files/$F.absent\"; fi; fi; done < \"$BASE/thermal_files.ini\"; "+
-            "mkdir -p \"$BASE/download\"; "+
-            "while IFS= read -r F; do case \"$F\" in thermal*.conf) ;; *) continue;; esac; "+
-            "curl -fLsS --max-time 20 \"$U/$P/$D/$M/$F\" -o \"$BASE/download/$F\"; "+
-            "test -s \"$BASE/download/$F\"; "+
-            "cp \"$BASE/download/$F\" \"$DIR/$F\"; chmod 0444 \"$DIR/$F\"; done < \"$BASE/profile_files.ini\"; "+
-            "printf '%s\\n' \"$M\" > \"$DIR/thermal.current.ini\"; "+
-            "chown -R root:system \"$DIR\" 2>/dev/null || true; restorecon -RF \"$DIR\" 2>/dev/null || true; "+
-            "for S in mi_thermald thermal-engine; do if command -v \"$S\" >/dev/null 2>&1; then stop \"$S\" 2>/dev/null || true; start \"$S\" 2>/dev/null || true; fi; done; "+
-            "echo applied:$M";
+        if(p.isEmpty()||d.isEmpty()||m.isEmpty()) throw new IOException("Invalid device/profile identifier");
+        File work=thermalWorkDir();
+        File backupList=new File(work,"thermal_files.ini");
+        File profileList=new File(work,"profile_files.ini");
+        downloadTo(SCENE_BASE+"/"+p+"/"+d+"/thermal_files.ini",backupList);
+        downloadTo(SCENE_BASE+"/"+p+"/"+d+"/"+m+"/files.ini",profileList);
+        List<String> thermalFiles=readSafeFileList(backupList);
+        List<String> profileFiles=readSafeFileList(profileList);
+        if(thermalFiles.isEmpty()||profileFiles.isEmpty()) throw new IOException("Scene file list is empty or invalid");
+        File staged=new File(work,"profile_"+m);
+        if(!staged.exists()&&!staged.mkdirs()) throw new IOException("Cannot create staging directory");
+        for(String name:profileFiles) {
+            if(!name.startsWith("thermal")||!name.endsWith(".conf")) continue;
+            downloadTo(SCENE_BASE+"/"+p+"/"+d+"/"+m+"/"+name,new File(staged,name));
+        }
+        StringBuilder sh=new StringBuilder("set -eu; ");
+        sh.append("BASE='/data/adb/pulsext/thermal-backup/").append(d).append("'; DIR='/data/vendor/thermal/config'; STAGE='")
+          .append(shellQuote(staged.getAbsolutePath())).append("'; mkdir -p \"$BASE/files\" \"$DIR\"; ");
+        for(String name:thermalFiles) {
+            sh.append("F='").append(name).append("'; ");
+            sh.append("if [ ! -e \"$BASE/files/$F.saved\" ] && [ ! -e \"$BASE/files/$F.absent\" ]; then ");
+            sh.append("if [ -f \"$DIR/$F\" ]; then cp -p \"$DIR/$F\" \"$BASE/files/$F.saved\"; else : > \"$BASE/files/$F.absent\"; fi; fi; ");
+        }
+        int copied=0;
+        for(String name:profileFiles) {
+            if(!name.startsWith("thermal")||!name.endsWith(".conf")) continue;
+            File file=new File(staged,name);
+            if(!file.isFile()||file.length()==0) continue;
+            sh.append("cp '").append(shellQuote(file.getAbsolutePath())).append("' '")
+              .append("/data/vendor/thermal/config/").append(name).append("'; chmod 0444 '/data/vendor/thermal/config/")
+              .append(name).append("'; ");
+            copied++;
+        }
+        if(copied==0) throw new IOException("Scene profile contains no thermal .conf files");
+        sh.append("printf '%s\\n' '").append(m).append("' > \"$DIR/thermal.current.ini\"; ")
+          .append("chown -R root:system \"$DIR\" 2>/dev/null || true; restorecon -RF \"$DIR\" 2>/dev/null || true; ")
+          .append("for S in mi_thermald thermal-engine; do if command -v \"$S\" >/dev/null 2>&1; then stop \"$S\" 2>/dev/null || true; start \"$S\" 2>/dev/null || true; fi; done; echo applied:").append(m);
+        return sh.toString();
     }
+
+    private List<String> readSafeFileList(File file) throws IOException {
+        ArrayList<String> names=new ArrayList<>();
+        try(BufferedReader reader=new BufferedReader(new InputStreamReader(new FileInputStream(file),StandardCharsets.UTF_8))){
+            String line;
+            while((line=reader.readLine())!=null){
+                String name=line.trim();
+                if(name.matches("thermal[A-Za-z0-9_.-]*\\.conf")&&!names.contains(name)) names.add(name);
+            }
+        }
+        return names;
+    }
+
+    private String shellQuote(String value) { return value.replace("'","'\\''"); }
 
     private String restoreScript(){
         String d=safe(device);
         return "set -eu; D='"+d+"'; BASE=\"/data/adb/pulsext/thermal-backup/$D\"; DIR='/data/vendor/thermal/config'; "+
             "test -d \"$BASE/files\" || { echo no_backup_found; exit 20; }; "+
-            "while IFS= read -r F; do case \"$F\" in thermal*.conf) ;; *) continue;; esac; "+
-            "if [ -f \"$BASE/files/$F.saved\" ]; then cp -p \"$BASE/files/$F.saved\" \"$DIR/$F\"; "+
-            "elif [ -f \"$BASE/files/$F.absent\" ]; then rm -f \"$DIR/$F\"; fi; done < \"$BASE/thermal_files.ini\"; "+
+            "for F in \"$BASE\"/files/*.saved; do [ -f \"$F\" ] || continue; N=\u0024{F##*/}; N=\u0024{N%.saved}; cp -p \"$F\" \"$DIR/$N\"; done; "+
+            "for F in \"$BASE\"/files/*.absent; do [ -f \"$F\" ] || continue; N=\u0024{F##*/}; N=\u0024{N%.absent}; rm -f \"$DIR/$N\"; done; "+
             "rm -f \"$DIR/thermal.current.ini\"; restorecon -RF \"$DIR\" 2>/dev/null || true; "+
             "for S in mi_thermald thermal-engine; do if command -v \"$S\" >/dev/null 2>&1; then stop \"$S\" 2>/dev/null || true; start \"$S\" 2>/dev/null || true; fi; done; echo restored_original";
     }
