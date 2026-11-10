@@ -20,42 +20,108 @@ public final class GameProfileMonitorService extends Service {
     private static final String TAG="PulseXtGameMonitor";
     private static final String PREFS="game_profiles";
     private static final String EXTRA_PACKAGE="game_package";
+    public static final String ACTION_AUTO="com.abolfazl.hzswitcher.ACTION_AUTO_GAME_MONITOR";
+    public static final String ACTION_STOP_AUTO="com.abolfazl.hzswitcher.ACTION_STOP_AUTO_GAME_MONITOR";
     private static final String ACTIVE_PACKAGE="monitor_active_package";
     private static final String CHANNEL="game_profile_monitor";
     private final Handler handler=new Handler(Looper.getMainLooper());
     private String gamePackage;
     private boolean seenGame;
     private boolean checking;
+    private boolean autoMode;
     private final Runnable poll=new Runnable(){
         @Override public void run(){
-            if(checking||gamePackage==null)return;
+            if(checking||(!autoMode&&gamePackage==null))return;
             checking=true;
             new Thread(()->{
                 RootHardwareController.Result r=RootHardwareController.run(
                     "(dumpsys activity activities 2>/dev/null | grep -E 'mResumedActivity|topResumedActivity' || true); "+
                     "(dumpsys window 2>/dev/null | grep -m1 mCurrentFocus || true); exit 0",5000);
-                boolean foreground=r.output.contains(gamePackage);
-                Log.d(TAG,"foreground="+foreground+" package="+gamePackage+" output="+r.output);
+                String foreground=null;
+                android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
+                if(autoMode){
+                    for(java.util.Map.Entry<String,?> entry:prefs.getAll().entrySet()){
+                        String key=entry.getKey();
+                        if(key.endsWith(".auto")&&Boolean.TRUE.equals(entry.getValue())){
+                            String candidate=key.substring(0,key.length()-5);
+                            if(!candidate.isEmpty()&&r.output.contains(candidate)){foreground=candidate;break;}
+                        }
+                    }
+                }else if(gamePackage!=null&&r.output.contains(gamePackage))foreground=gamePackage;
+                final String detected=foreground;
                 handler.post(()->{
                     checking=false;
-                    if(foreground){
+                    Log.d(TAG,"foreground="+detected+" active="+gamePackage+" auto="+autoMode);
+                    if(gamePackage!=null&&!gamePackage.equals(detected)){
+                        if(seenGame){restoreAndFinish();return;}
+                        if(autoMode){gamePackage=null;seenGame=false;}
+                    }
+                    if(autoMode&&gamePackage==null&&detected!=null){beginAutomaticSession(detected);return;}
+                    if(gamePackage!=null&&gamePackage.equals(detected)){
                         if(!seenGame){
                             seenGame=true;
-                            getSharedPreferences(PREFS,MODE_PRIVATE).edit()
-                                .putBoolean("monitor_seen_game",true).apply();
-                            Toast.makeText(GameProfileMonitorService.this,"Game Profile activated",Toast.LENGTH_SHORT).show();
-                            new Thread(()->{applyDisplaySoundProfile(gamePackage);applyGameHardwareProfile(gamePackage);applyGameRefreshProfile(gamePackage);applyGameTouchProfile(gamePackage);},"PulseXtHardwareApply").start();
+                            prefs.edit().putBoolean("monitor_seen_game",true).apply();
+                            updateNotification("Active game: "+labelFor(gamePackage));
+                            applyProfileForPackage(gamePackage);
                         }
-                        handler.postDelayed(this,1000);
-                    }else if(seenGame){
-                        restoreAndFinish();
-                    }else{
-                        handler.postDelayed(this,1000);
-                    }
+                        handler.postDelayed(this,900);
+                    }else if(autoMode||gamePackage!=null)handler.postDelayed(this,1100);
                 });
             },"PulseXtGameProbe").start();
         }
     };
+
+    private void beginAutomaticSession(String pkg){
+        if(pkg==null||pkg.isEmpty())return;
+        gamePackage=pkg;seenGame=false;
+        handler.removeCallbacks(poll);
+        new Thread(()->{
+            if(!captureOriginalState(pkg)){
+                Log.e(TAG,"Auto profile skipped: could not capture original state for "+pkg);
+                handler.post(()->{gamePackage=null;seenGame=false;handler.postDelayed(poll,1500);});
+                return;
+            }
+            getSharedPreferences(PREFS,MODE_PRIVATE).edit()
+                .putString(ACTIVE_PACKAGE,pkg).putBoolean("monitor_seen_game",true).apply();
+            seenGame=true;
+            updateNotification("Active game: "+labelFor(pkg));
+            applyDisplaySoundProfile(pkg);applyGameHardwareProfile(pkg);applyGameRefreshProfile(pkg);applyGameTouchProfile(pkg);
+            handler.post(()->{if(pkg.equals(gamePackage))handler.postDelayed(poll,900);});
+        },"PulseXtAutoProfileApply").start();
+    }
+
+    private boolean captureOriginalState(String pkg){
+        RootHardwareController.Result r=RootHardwareController.run(
+            "echo BRIGHTNESS:$(settings get system screen_brightness); "+
+            "echo BRIGHTNESS_MODE:$(settings --user 0 get system screen_brightness_mode); "+
+            "echo BATTERY_SAVER:$(settings get global low_power)",6000);
+        int brightness=taggedInt(r.output,"BRIGHTNESS:",-1);
+        int mode=taggedInt(r.output,"BRIGHTNESS_MODE:",-1);
+        int battery=taggedInt(r.output,"BATTERY_SAVER:",-1);
+        try{
+            AudioManager audio=(AudioManager)getSystemService(Context.AUDIO_SERVICE);
+            int volume=audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+            int max=audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            if(!r.ok()||brightness<0||brightness>255||mode<0||mode>1||battery<0||battery>1||max<1)return false;
+            return getSharedPreferences(PREFS,MODE_PRIVATE).edit()
+                .putInt(pkg+".restore_brightness",brightness).putInt(pkg+".restore_brightness_mode",mode)
+                .putInt(pkg+".restore_battery_saver",battery).putInt(pkg+".restore_volume",volume)
+                .putInt(pkg+".restore_volume_max",max).putBoolean(pkg+".restore_pending",true)
+                .putBoolean("monitor_seen_game",true).putString(ACTIVE_PACKAGE,pkg).commit();
+        }catch(Exception e){Log.e(TAG,"Could not capture game state",e);return false;}
+    }
+
+    private int taggedInt(String output,String tag,int fallback){
+        try{for(String line:output.split("\\r?\\n"))if(line.startsWith(tag))return Integer.parseInt(line.substring(tag.length()).trim());}
+        catch(Exception ignored){}return fallback;
+    }
+    private String labelFor(String pkg){
+        try{return getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,0)).toString();}
+        catch(Exception e){return pkg;}
+    }
+    private void applyProfileForPackage(String pkg){
+        new Thread(()->{applyDisplaySoundProfile(pkg);applyGameHardwareProfile(pkg);applyGameRefreshProfile(pkg);applyGameTouchProfile(pkg);},"PulseXtHardwareApply").start();
+    }
 
     @Override public void onCreate(){
         super.onCreate();
@@ -65,21 +131,24 @@ public final class GameProfileMonitorService extends Service {
 
     @Override public int onStartCommand(Intent intent,int flags,int startId){
         android.content.SharedPreferences prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
-        if(intent!=null&&intent.hasExtra(EXTRA_PACKAGE)){
-            gamePackage=intent.getStringExtra(EXTRA_PACKAGE);
-            seenGame=false;
+        if(intent!=null&&ACTION_STOP_AUTO.equals(intent.getAction())){
+            autoMode=false;
+            if(gamePackage==null){stopSelf();return START_NOT_STICKY;}
+        }else if(intent!=null&&ACTION_AUTO.equals(intent.getAction())){
+            autoMode=true;gamePackage=null;seenGame=false;
+            prefs.edit().putBoolean("auto_monitor_enabled",true).remove(ACTIVE_PACKAGE).putBoolean("monitor_seen_game",false).apply();
+        }else if(intent!=null&&intent.hasExtra(EXTRA_PACKAGE)){
+            autoMode=false;gamePackage=intent.getStringExtra(EXTRA_PACKAGE);seenGame=false;
             prefs.edit().putString(ACTIVE_PACKAGE,gamePackage).putBoolean("monitor_seen_game",false).apply();
         }else{
-            gamePackage=prefs.getString(ACTIVE_PACKAGE,null);
+            autoMode=prefs.getBoolean("auto_monitor_enabled",false);
+            gamePackage=autoMode?null:prefs.getString(ACTIVE_PACKAGE,null);
             seenGame=prefs.getBoolean("monitor_seen_game",false);
         }
-        if(gamePackage==null||!prefs.getBoolean(gamePackage+".restore_pending",false)){
-            stopSelf();
-            return START_NOT_STICKY;
+        if(!autoMode&&(gamePackage==null||!prefs.getBoolean(gamePackage+".restore_pending",false))){
+            stopSelf();return START_NOT_STICKY;
         }
-        handler.removeCallbacks(poll);
-        handler.post(poll);
-        return START_STICKY;
+        handler.removeCallbacks(poll);handler.post(poll);return START_STICKY;
     }
 
     private void applyDisplaySoundProfile(String pkg){
@@ -414,7 +483,8 @@ public final class GameProfileMonitorService extends Service {
             handler.post(()->{
                 if(success){
                     Log.i(TAG,"Original game settings restored for "+gamePackage);
-                    stopSelf();
+                    if(autoMode){gamePackage=null;seenGame=false;updateNotification("Waiting for a game");handler.postDelayed(poll,900);}
+                    else stopSelf();
                 }else{
                     Log.w(TAG,"Restore incomplete; retrying displayOk="+displayRestored+" volumeOk="+volumeRestored+" batterySaverOk="+batterySaverRestoredFinal+" hardwareOk="+hardwareRestored+" refreshOk="+refreshRestored+" touchOk="+touchRestored);
                     handler.postDelayed(()->restoreAndFinish(),2500);
@@ -422,6 +492,8 @@ public final class GameProfileMonitorService extends Service {
             });
         },"PulseXtGameRestore").start();
     }
+
+    private void updateNotification(String text){try{((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(7301,buildNotification(text));}catch(Exception e){Log.w(TAG,"Notification update failed",e);}}
 
     private Notification buildNotification(String text){
         if(Build.VERSION.SDK_INT>=26){
