@@ -48,6 +48,14 @@ public class MainActivity extends Activity {
         buildUi();
         refreshDisplay();
         checkRoot();
+        // Resume the headless monitor when the user opens AutoHz after a force-stop
+        // or an OEM process cleanup; normal boot recovery is handled by the receiver.
+        android.content.SharedPreferences gameState=getSharedPreferences("game_profiles",MODE_PRIVATE);
+        if(gameState.getBoolean("auto_monitor_enabled",false)){
+            Intent monitor=new Intent(this,GameProfileMonitorService.class);
+            monitor.setAction(GameProfileMonitorService.ACTION_AUTO);
+            if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);
+        }
     }
 
     private GradientDrawable shape(int color,int radius,int strokeColor) {
