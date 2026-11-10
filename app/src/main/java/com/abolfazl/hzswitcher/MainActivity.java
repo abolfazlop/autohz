@@ -330,7 +330,24 @@ public class MainActivity extends Activity {
         auto.setChecked(gamePrefs.getBoolean(profileKey(pkg,"auto"),false));c.addView(auto);
         TextView autoHint=text("Apply this game's saved settings when it becomes the foreground app. Requires the background profile monitor.",11,MUTED,false);
         LinearLayout.LayoutParams ah=new LinearLayout.LayoutParams(-1,-2);ah.topMargin=dp(4);c.addView(autoHint,ah);
-        auto.setOnCheckedChangeListener((b,checked)->gamePrefs.edit().putBoolean(profileKey(pkg,"auto"),checked).apply());
+        auto.setOnCheckedChangeListener((b,checked)->{
+            gamePrefs.edit().putBoolean(profileKey(pkg,"auto"),checked).apply();
+            boolean any=false;
+            for(java.util.Map.Entry<String,?> entry:gamePrefs.getAll().entrySet()){
+                if(entry.getKey().endsWith(".auto")&&Boolean.TRUE.equals(entry.getValue())){any=true;break;}
+            }
+            gamePrefs.edit().putBoolean("auto_monitor_enabled",any).apply();
+            Intent monitor=new Intent(this,GameProfileMonitorService.class);
+            if(any){
+                monitor.setAction(GameProfileMonitorService.ACTION_AUTO);
+                if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);
+                autoHint.setText("Automatic profiles are active in the background. AutoHz does not need to stay open.");
+            }else{
+                monitor.setAction(GameProfileMonitorService.ACTION_STOP_AUTO);
+                try{startService(monitor);}catch(Exception ignored){stopService(new Intent(this,GameProfileMonitorService.class));}
+                autoHint.setText("Automatic profile switching is off.");
+            }
+        });
 
         addGameQuickToggles(c,pkg);
 
@@ -427,7 +444,25 @@ public class MainActivity extends Activity {
 
         Button launch=new Button(this);launch.setText("Save profile & launch game");launch.setAllCaps(false);launch.setTextColor(TEXT);launch.setBackground(shape(0xFF49336A,16,0));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(18);c.addView(launch,lp);
-        launch.setOnClickListener(v->{gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();try{Intent i=getPackageManager().getLaunchIntentForPackage(pkg);if(i==null)throw new IllegalStateException("No launch activity.");saveGameRestoreState(pkg);applyGameQuickToggles(pkg);Intent monitor=new Intent(this,GameProfileMonitorService.class);monitor.putExtra("game_package",pkg);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);startActivity(i);}catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}});
+        launch.setOnClickListener(v->{
+            gamePrefs.edit().putBoolean(profileKey(pkg,"configured"),true).apply();
+            try{
+                Intent i=getPackageManager().getLaunchIntentForPackage(pkg);
+                if(i==null)throw new IllegalStateException("No launch activity.");
+                boolean automatic=gamePrefs.getBoolean(profileKey(pkg,"auto"),false);
+                Intent monitor=new Intent(this,GameProfileMonitorService.class);
+                if(automatic){
+                    monitor.setAction(GameProfileMonitorService.ACTION_AUTO);
+                    gamePrefs.edit().putBoolean("auto_monitor_enabled",true).apply();
+                }else{
+                    saveGameRestoreState(pkg);
+                    applyGameQuickToggles(pkg);
+                    monitor.putExtra("game_package",pkg);
+                }
+                if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(monitor);else startService(monitor);
+                startActivity(i);
+            }catch(Exception e){Toast.makeText(this,"Could not launch game: "+e.getMessage(),Toast.LENGTH_LONG).show();}
+        });
         showPage("Game Profile",c);
         if(!hardwareScanStarted){
             hardwareScanStarted=true;
