@@ -184,7 +184,7 @@ public final class ThermalManagerActivity extends Activity {
     private String applyScript(String mode){
         String p=safe(platform),d=safe(device),m=safe(mode);
         return "set -eu; P='"+p+"'; D='"+d+"'; M='"+m+"'; "+
-            "BASE='/data/adb/pulsext/thermal-backup/'+\"$D\"; "+
+            "BASE=\"/data/adb/pulsext/thermal-backup/$D\"; "+
             "DIR='/data/vendor/thermal/config'; U='https://vtools.oss-cn-beijing.aliyuncs.com/Scene-Online/Thermal'; "+
             "test \"$(id -u)\" = 0; test -n \"$P\"; test -n \"$D\"; "+
             "command -v curl >/dev/null 2>&1 || { echo curl_missing; exit 10; }; "+
@@ -207,7 +207,7 @@ public final class ThermalManagerActivity extends Activity {
 
     private String restoreScript(){
         String d=safe(device);
-        return "set -eu; D='"+d+"'; BASE='/data/adb/pulsext/thermal-backup/'+\"$D\"; DIR='/data/vendor/thermal/config'; "+
+        return "set -eu; D='"+d+"'; BASE=\"/data/adb/pulsext/thermal-backup/$D\"; DIR='/data/vendor/thermal/config'; "+
             "test -d \"$BASE/files\" || { echo no_backup_found; exit 20; }; "+
             "while IFS= read -r F; do case \"$F\" in thermal*.conf) ;; *) continue;; esac; "+
             "if [ -f \"$BASE/files/$F.saved\" ]; then cp -p \"$BASE/files/$F.saved\" \"$DIR/$F\"; "+
