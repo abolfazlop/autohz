@@ -83,19 +83,25 @@ public final class ThermalManagerActivity extends Activity {
         status.setText("Checking root and fetching device-specific profiles…");
         worker.execute(()->{
             RootHardwareController.Result r=RootHardwareController.run(
-                "printf 'ROOT='; id -u; printf '\\nPLATFORM='; getprop ro.board.platform; printf '\\nDEVICE='; getprop ro.product.device; "+
-                "printf '\\nTHERMAL_DIR='; [ -d /data/vendor/thermal/config ] && echo yes || echo no; "+
-                "printf '\\nCURL='; command -v curl",8000);
+                "printf 'ROOT='; id -u; printf '\\nPLATFORM='; getprop ro.board.platform | tr 'A-Z' 'a-z'; printf '\\nDEVICE='; getprop ro.product.device; "+
+                "printf '\\nCURL='; command -v curl 2>/dev/null || true; printf '\\nWGET='; command -v wget 2>/dev/null || true; printf '\\nTOYBOX='; command -v toybox 2>/dev/null || true",8000);
             String out=r.output;
             String p=field(out,"PLATFORM"),d=field(out,"DEVICE");
             boolean rootOk=field(out,"ROOT").equals("0");
-            String profileOut="";
+            String profileOut="",fetchError="";
             if(rootOk&&!p.isEmpty()&&!d.isEmpty()){
-                String script="P='"+safe(p)+"'; D='"+safe(d)+"'; U='https://vtools.oss-cn-beijing.aliyuncs.com/Scene-Online/Thermal'; "+
-                    "curl -L -s --max-time 12 \"$U/$P/$D/options.ini\"";
-                profileOut=RootHardwareController.run(script,16000).output;
-            }
-            final String fp=p,fd=d,fo=profileOut;final boolean fr=rootOk;
+                String url="https://vtools.oss-cn-beijing.aliyuncs.com/Scene-Online/Thermal/"+safe(p)+"/"+safe(d)+"/options.ini";
+                String script="U='"+url+"'; T=/data/local/tmp/pulsext-scene-options.txt; rm -f \\"$T\\"; "+
+                    "if command -v curl >/dev/null 2>&1; then curl -fLsS --connect-timeout 5 --max-time 15 \\"$U\\" -o \\"$T\\" 2>&1 || true; "+
+                    "elif command -v wget >/dev/null 2>&1; then wget -q -T 15 -O \\"$T\\" \\"$U\\" 2>&1 || true; "+
+                    "elif command -v toybox >/dev/null 2>&1; then toybox wget -q -T 15 -O \\"$T\\" \\"$U\\" 2>&1 || true; "+
+                    "else echo FETCH_ERROR:no_curl_or_wget; exit 21; fi; "+
+                    "if [ -s \\"$T\\" ]; then cat \\"$T\\"; else echo FETCH_ERROR:empty_response_or_network_error; fi";
+                RootHardwareController.Result fetched=RootHardwareController.run(script,22000);
+                profileOut=fetched.output;
+                if(!fetched.ok())fetchError="Scene profile request failed (exit "+fetched.exitCode+")";
+            } else fetchError="Root access or device properties unavailable";
+            final String fp=p,fd=d,fo=profileOut,fe=fetchError;final boolean fr=rootOk;
             runOnUiThread(()->{
                 platform=fp;device=fd;
                 deviceInfo.setText("Platform: "+(fp.isEmpty()?"unknown":fp)+"   •   Device: "+(fd.isEmpty()?"unknown":fd));
@@ -112,7 +118,8 @@ public final class ThermalManagerActivity extends Activity {
                 }
                 renderOptions();
                 if(!fr)status.setText("Root access is required. Grant AutoHz root permission and retry.");
-                else if(profiles.isEmpty())status.setText("Scene has no published profile list for this device. Nothing was changed.");
+                else if(fo.startsWith("FETCH_ERROR:"))status.setText(fe+": "+fo.substring("FETCH_ERROR:".length())+". Device: "+fp+"/"+fd+". Nothing was changed.");
+                else if(profiles.isEmpty())status.setText("Scene returned no usable profiles for "+fp+"/"+fd+". Response: "+(fo.isEmpty()?"<empty>":fo.substring(0,Math.min(90,fo.length())))+". Nothing was changed.");
                 else status.setText("Scene profile list loaded for this device. Select a profile to apply.");
             });
         });
