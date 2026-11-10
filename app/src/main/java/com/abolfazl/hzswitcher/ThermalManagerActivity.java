@@ -212,7 +212,7 @@ public final class ThermalManagerActivity extends Activity {
                 else script=prepareAndApply(profile.id);
                 result=RootHardwareController.run(script,90000);
             } catch(Exception e) {
-                result=RootHardwareController.Result.failure("Download failed: "+e.getMessage());
+                result=new RootHardwareController.Result(1,"Download failed: "+e.getMessage());
             }
             final RootHardwareController.Result finalResult=result;
             runOnUiThread(()->{
